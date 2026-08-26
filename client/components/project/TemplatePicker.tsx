@@ -3,8 +3,14 @@
 // iframe previews at every level (not colour circles, not screenshots) —
 // reuses the exact same buildPrototypeDoc() that renders the client's
 // actual preview page later, so what you pick here is what they'll see.
+// Also handles "one by one" mode: per-section template overrides. The Live
+// preview panel at the bottom needs zero special-casing for this — it
+// already renders buildPrototypeDoc(value), which respects
+// value.sectionTemplates automatically. Click through the nav inside it
+// (it's interactive) to see how each mixed section actually looks.
 "use client";
 
+import { useState } from "react";
 import {
   TEMPLATE_META,
   THEMES,
@@ -15,6 +21,7 @@ import {
   type ThemeId,
   type MotionId,
   type PageId,
+  type SectionKey,
   type PrototypeConfig,
 } from "@/lib/templateEngine";
 import ScaledFrame from "./ScaledFrame";
@@ -23,12 +30,29 @@ const TEMPLATE_IDS = Object.keys(TEMPLATE_META) as TemplateId[];
 const THEME_IDS = Object.keys(THEMES) as ThemeId[];
 const MOTION_IDS = Object.keys(MOTION) as MotionId[];
 
+const SECTION_ROWS: { key: SectionKey; label: string }[] = [
+  { key: "chrome", label: "Navbar & Footer" },
+  { key: "home", label: "Home" },
+  { key: "about", label: "About" },
+  { key: "services", label: "Services" },
+  { key: "contact", label: "Contact" },
+  { key: "login", label: "Login" },
+];
+
 interface TemplatePickerProps {
   value: PrototypeConfig;
   onChange: (config: PrototypeConfig) => void;
 }
 
+function hasAnyOverride(config: PrototypeConfig): boolean {
+  return Boolean(
+    config.sectionTemplates && Object.values(config.sectionTemplates).some((v) => v !== undefined)
+  );
+}
+
 export default function TemplatePicker({ value, onChange }: TemplatePickerProps) {
+  const [showAdvanced, setShowAdvanced] = useState(hasAnyOverride(value));
+
   function update(patch: Partial<PrototypeConfig>) {
     onChange({ ...value, ...patch });
   }
@@ -41,6 +65,30 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
       : PAGE_ORDER.filter((p) => [...value.pages, page].includes(p));
     update({ pages: next });
   }
+
+  function toggleAdvanced() {
+    if (showAdvanced) {
+      // switching back to "Common" — clear every per-section override
+      setShowAdvanced(false);
+      onChange({ ...value, sectionTemplates: undefined });
+    } else {
+      setShowAdvanced(true);
+    }
+  }
+
+  function updateSectionTemplate(section: SectionKey, templateId: TemplateId | "") {
+    const next = { ...(value.sectionTemplates || {}) };
+    if (templateId === "") {
+      delete next[section];
+    } else {
+      next[section] = templateId;
+    }
+    onChange({ ...value, sectionTemplates: next });
+  }
+
+  const visibleSectionRows = SECTION_ROWS.filter(
+    (row) => row.key === "chrome" || value.pages.includes(row.key as PageId)
+  );
 
   return (
     <div className="space-y-8">
@@ -72,6 +120,9 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
             );
           })}
         </div>
+        <p className="mt-2 text-xs text-slate-400">
+          This is the default — every section uses it unless you customize one below.
+        </p>
       </div>
 
       {/* ---------- theme ---------- */}
@@ -100,6 +151,7 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
             );
           })}
         </div>
+        <p className="mt-2 text-xs text-slate-400">Colour and motion always apply site-wide — only layout can be mixed per section.</p>
       </div>
 
       {/* ---------- motion ---------- */}
@@ -151,12 +203,64 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
         </div>
       </div>
 
+      {/* ---------- per-section templates ("one by one" mode) ---------- */}
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Per-section templates</h3>
+            <p className="text-xs text-slate-400">
+              {showAdvanced
+                ? "Pick a different template for any section — leave the rest on the default."
+                : "Every section currently uses the same template above."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleAdvanced}
+            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+              showAdvanced
+                ? "border-indigo-600 bg-indigo-600 text-white"
+                : "border-slate-300 text-slate-600 hover:border-indigo-400"
+            }`}
+          >
+            {showAdvanced ? "One by one" : "Common"}
+          </button>
+        </div>
+
+        {showAdvanced && (
+          <div className="space-y-1 rounded-xl border border-slate-200 p-3">
+            {visibleSectionRows.map((row) => (
+              <div key={row.key} className="flex items-center justify-between gap-3 py-1.5">
+                <span className="text-sm text-slate-700">{row.label}</span>
+                <select
+                  value={value.sectionTemplates?.[row.key] ?? ""}
+                  onChange={(e) => updateSectionTemplate(row.key, e.target.value as TemplateId | "")}
+                  className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                >
+                  <option value="">Same as default ({TEMPLATE_META[value.templateId].layoutName})</option>
+                  {TEMPLATE_IDS.map((tid) => (
+                    <option key={tid} value={tid}>
+                      {TEMPLATE_META[tid].layoutName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* ---------- live preview ---------- */}
       <div>
         <h3 className="mb-3 text-sm font-semibold text-slate-800">Live preview</h3>
         <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
           <ScaledFrame config={value} cropHeight={460} interactive />
         </div>
+        {showAdvanced && (
+          <p className="mt-2 text-xs text-slate-400">
+            Click through the nav above to see each page's actual template — the preview is fully interactive.
+          </p>
+        )}
       </div>
     </div>
   );

@@ -5,10 +5,12 @@ import { useState, ChangeEvent, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { PAGE_ORDER, type PrototypeConfig } from "@/lib/templateEngine";
+import { getSetupSteps, stepPath } from "@/lib/setupFlow";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import TemplatePicker from "@/components/project/TemplatePicker";
+import type { Project } from "@/types";
 
 interface BasicsForm {
   name: string;
@@ -34,6 +36,7 @@ export default function NewProjectPage() {
   const [files, setFiles] = useState<FileList | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [createdProject, setCreatedProject] = useState<Project | null>(null);
 
   function update(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setBasics({ ...basics, [e.target.name]: e.target.value });
@@ -52,7 +55,10 @@ export default function NewProjectPage() {
         await api.uploadFiles(project._id, formData);
       }
 
-      router.push(`/dashboard/projects/${project._id}`);
+      // Don't redirect straight to the project — offer the real choice: walk
+      // through content one page at a time, or skip straight in with the
+      // template's default wording.
+      setCreatedProject(project);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create project");
     } finally {
@@ -60,12 +66,40 @@ export default function NewProjectPage() {
     }
   }
 
+  if (createdProject) {
+    const firstStep = getSetupSteps(createdProject.pages)[0];
+    return (
+      <div className="mx-auto max-w-xl px-6 py-16 text-center">
+        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50">
+          <svg className="h-6 w-6 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        </div>
+        <h1 className="mb-2 text-xl font-semibold text-slate-900">
+          &ldquo;{createdProject.name}&rdquo; is created
+        </h1>
+        <p className="mb-8 text-sm text-slate-500">
+          Want to write the actual wording now, one page at a time — or start from the
+          template's default copy and edit it later?
+        </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <Button onClick={() => router.push(stepPath(createdProject._id, firstStep.id))}>
+            Customize content now
+          </Button>
+          <Button variant="ghost" onClick={() => router.push(`/dashboard/projects/${createdProject._id}`)}>
+            Use template defaults
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <h1 className="mb-1 text-xl font-semibold text-slate-900">New project</h1>
       <p className="mb-6 text-sm text-slate-500">
-        Pick a template to start from, then add the client's details. You can fine-tune the
-        design any time from the project page.
+        Pick a template to start from, then add the client's details. You'll be able to
+        customize the wording right after, or leave it for later.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">

@@ -14,6 +14,8 @@ import type {
   UpdateProfileInput,
   UpdatePasswordInput,
   AnalyticsOverview,
+  TemplateId,
+  SectionKey,
 } from "@/types";
 import { getToken } from "./auth";
 
@@ -75,16 +77,27 @@ export const api = {
   getProject: (id: string) => request<Project>(`/projects/${id}`),
   createProject: (payload: CreateProjectInput) =>
     request<Project>("/projects", { method: "POST", body: payload }),
-  updateProject: (id: string, payload: Partial<CreateProjectInput & { status: ProjectStatus; brandName: string }>) =>
-    request<Project>(`/projects/${id}`, { method: "PUT", body: payload }),
+  updateProject: (
+    id: string,
+    payload: Partial <
+      CreateProjectInput & {
+        status: ProjectStatus;
+        brandName: string;
+        sectionTemplates: Partial<Record<SectionKey, TemplateId>>;
+      }
+    >
+  ) => request<Project>(`/projects/${id}`, { method: "PUT", body: payload }),
   deleteProject: (id: string) =>
     request<{ message: string }>(`/projects/${id}`, { method: "DELETE" }),
   regenerateLink: (id: string) =>
     request<Project>(`/projects/${id}/regenerate-link`, { method: "POST" }),
   addFreelancerComment: (id: string, text: string) =>
     request<Project>(`/projects/${id}/comments`, { method: "POST", body: { text } }),
-  updatePageContent: <T>(id: string, page: "home" | "about" | "services" | "contact", content: T) =>
-    request<Project>(`/projects/${id}/content/${page}`, { method: "PUT", body: content }),
+  updatePageContent: <T>(
+    id: string,
+    page: "home" | "about" | "services" | "contact" | "nav" | "footer",
+    content: T
+  ) => request<Project>(`/projects/${id}/content/${page}`, { method: "PUT", body: content }),
 
   // ---- uploads (protected) ----
   uploadFiles: (id: string, formData: FormData) =>

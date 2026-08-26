@@ -66,7 +66,7 @@ async function updateProject(req, res, next) {
 
     const allowed = [
       "name", "clientName", "clientEmail", "description", "status",
-      "templateId", "themeId", "motionId", "pages", "brandName",
+      "templateId", "themeId", "motionId", "pages", "brandName", "sectionTemplates",
     ];
     allowed.forEach((field) => {
       if (req.body[field] !== undefined) project[field] = req.body[field];

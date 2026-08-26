@@ -6,7 +6,7 @@
 const Project = require("../models/Project");
 
 const PUBLIC_FIELDS =
-  "name clientName status templateId themeId motionId pages brandName content files comments createdAt";
+  "name clientName status templateId themeId motionId pages brandName sectionTemplates content files comments createdAt";
 
 function trimmed(project) {
   return {
@@ -18,6 +18,7 @@ function trimmed(project) {
     motionId: project.motionId,
     pages: project.pages,
     brandName: project.brandName,
+    sectionTemplates: project.sectionTemplates,
     content: project.content,
     files: project.files,
     comments: project.comments,

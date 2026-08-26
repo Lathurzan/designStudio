@@ -200,6 +200,24 @@ export default function ProjectDetailPage({ params }: PageProps) {
                   </div>
                 );
               })}
+              {(() => {
+                const customized = Boolean(project.content?.nav || project.content?.footer);
+                return (
+                  <div className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">Navbar &amp; footer</p>
+                      <p className="text-xs text-slate-400">
+                        {customized ? "Customized" : "Using template default"} — shared across every page
+                      </p>
+                    </div>
+                    <Link href={`/dashboard/projects/${projectId}/edit/nav-footer`}>
+                      <Button size="sm" variant="ghost" type="button">
+                        Edit
+                      </Button>
+                    </Link>
+                  </div>
+                );
+              })()}
             </div>
           </Card>
 

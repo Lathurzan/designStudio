@@ -6,12 +6,19 @@
 // Template (layout) + Theme (colour tokens) + Motion (timing tokens) +
 // Pages (which sections exist) combine into a single interactive document
 // that gets dropped into an <iframe srcDoc={...}>.
+//
+// "Common" vs "one by one": templateId is the project's default template.
+// sectionTemplates lets specific sections (chrome = navbar+footer, or any
+// individual page) use a DIFFERENT template than the default. Theme and
+// motion stay global — mixing colours/timing per section would look broken,
+// only the structural/layout language (template) is mixable.
 // ============================================================================
 
 export type TemplateId = "modern" | "minimal" | "bold";
 export type ThemeId = "blue" | "green" | "purple" | "orange" | "dark" | "neutral";
 export type MotionId = "subtle" | "smooth" | "dynamic";
 export type PageId = "home" | "about" | "services" | "contact" | "login";
+export type SectionKey = "chrome" | "home" | "about" | "services" | "contact" | "login";
 
 export interface PrototypeConfig {
   templateId: TemplateId;
@@ -20,6 +27,14 @@ export interface PrototypeConfig {
   pages: PageId[];
   /** Overrides the template's built-in business name (e.g. "Halcyon Consulting") with the freelancer's real client. */
   brandName?: string;
+  /**
+   * "One by one" mode — lets specific sections use a different template than
+   * `templateId` (the default). "Common" mode is simply this being absent —
+   * every existing project with no overrides renders exactly as before.
+   * "chrome" covers the navbar + footer together, since they're shared
+   * site-wide UI rather than tied to any one page.
+   */
+  sectionTemplates?: Partial<Record<SectionKey, TemplateId>>;
   /** Freelancer-edited copy, one full page's worth at a time — replaces that page's template defaults entirely when present. */
   contentOverrides?: Partial<{
     home: ContentHome;
@@ -269,7 +284,7 @@ const CSS_COMPONENTS = `
   [data-template="modern"] .nav-links a{text-transform:none;}
   [data-template="modern"] .card{border-radius:20px;}
 
-  [data-template="minimal"] body{letter-spacing:-.005em;}
+  [data-template="minimal"]{letter-spacing:-.005em;}
   [data-template="minimal"] .hero{grid-template-columns:1fr; max-width:900px;}
   [data-template="minimal"] .hero-art{display:none;}
   [data-template="minimal"] h1{font-size:clamp(40px,7vw,88px); letter-spacing:-.02em;}
@@ -431,10 +446,11 @@ export const FOOTER_DEFAULTS: ContentFooter = {
   bottomNote: "Prototype generated for client review — not a live website.",
 };
 
-function navHTML(pages: PageId[], brand: string, navOverride?: ContentNav): string {
+function navHTML(pages: PageId[], brand: string, navOverride: ContentNav | undefined, wrapTemplateId: TemplateId): string {
   const nav = { ...NAV_DEFAULTS, ...navOverride };
   const links = pages.map(p => `<a data-nav="${p}" class="${p === "home" ? "active" : ""}">${PAGE_LABELS[p]}</a>`).join("");
   return `
+  <div data-template="${wrapTemplateId}">
   <nav class="nav">
     <div class="nav-brand"><span class="nav-mark"></span>${brand}</div>
     <div class="nav-links">${links}</div>
@@ -447,19 +463,20 @@ function navHTML(pages: PageId[], brand: string, navOverride?: ContentNav): stri
   <div class="mnav">
     <div class="mnav-top"><div class="nav-brand"><span class="nav-mark"></span>${brand}</div><button class="mnav-close" aria-label="Close" style="border:none;background:none;font-size:26px;color:var(--text);">&times;</button></div>
     ${pages.map(p => `<a data-nav="${p}">${PAGE_LABELS[p]}</a>`).join("")}
+  </div>
   </div>`;
 }
 
-function footerHTML(brand: string, pages: PageId[], footerOverride?: ContentFooter): string {
+function footerHTML(brand: string, pages: PageId[], footerOverride: ContentFooter | undefined, wrapTemplateId: TemplateId): string {
   const footer = { ...FOOTER_DEFAULTS, ...footerOverride };
-  return `<footer class="site">
+  return `<div data-template="${wrapTemplateId}"><footer class="site">
     <div><div class="nav-brand" style="margin-bottom:14px;"><span class="nav-mark"></span>${brand}</div><p style="max-width:26ch; font-size:13.5px;">${footer.tagline}</p></div>
     <div class="f-cols">
       <div><h4>Site</h4><ul>${pages.map(p => `<li><a data-nav="${p}">${PAGE_LABELS[p]}</a></li>`).join("")}</ul></div>
       <div><h4>Company</h4><ul><li><a data-nav="about">About</a></li><li><a data-nav="contact">Contact</a></li></ul></div>
     </div>
     <div class="f-bottom">© ${new Date().getFullYear()} ${brand}. ${footer.bottomNote}</div>
-  </footer>`;
+  </footer></div>`;
 }
 
 interface ContentStat { n: string; l: string; }
@@ -638,15 +655,17 @@ function resolveContent(
 }
 
 function pagesFor(
-  templateId: TemplateId,
+  sectionTemplates: Record<SectionKey, TemplateId>,
   pages: PageId[],
   brand: string,
   overrides?: PrototypeConfig["contentOverrides"]
 ): Partial<Record<PageId, string>> {
-  const content = resolveContent(templateId, overrides);
   const out: Partial<Record<PageId, string>> = {};
 
-  if (pages.includes("home")) out.home = `<div class="page is-active" id="page-home">
+  if (pages.includes("home")) {
+    const templateId = sectionTemplates.home;
+    const content = resolveContent(templateId, overrides);
+    out.home = `<div data-template="${templateId}"><div class="page is-active" id="page-home">
     <section class="hero" data-stagger>
       <div class="hero-copy">
         <div class="eyebrow rv">${content.home.eyebrow}</div>
@@ -680,10 +699,14 @@ function pagesFor(
         <div class="hero-actions"><a class="btn btn-primary" data-nav="contact">${content.home.cta1}</a></div>
       </div>
     </section>
-    ${footerHTML(brand, pages, overrides?.footer)}
-  </div>`;
+    ${footerHTML(brand, pages, overrides?.footer, sectionTemplates.chrome)}
+    </div></div>`;
+  }
 
-  if (pages.includes("about")) out.about = `<div class="page" id="page-about">
+  if (pages.includes("about")) {
+    const templateId = sectionTemplates.about;
+    const content = resolveContent(templateId, overrides);
+    out.about = `<div data-template="${templateId}"><div class="page" id="page-about">
     <section class="split" data-stagger>
       <div>
         <div class="eyebrow rv">About</div>
@@ -697,10 +720,14 @@ function pagesFor(
       <div class="grid3">${content.about.values.map((v, i) => `<div class="card rv"><span class="num">0${i + 1}</span><h3>${v.title}</h3><p>${v.body}</p></div>`).join("")}</div>
     </section>
     <section><div class="cta-band rv"><h2>${content.about.ctaTitle}</h2><p>${content.about.ctaBody}</p><div class="hero-actions"><a class="btn btn-primary" data-nav="contact">Start a project</a></div></div></section>
-    ${footerHTML(brand, pages, overrides?.footer)}
-  </div>`;
+    ${footerHTML(brand, pages, overrides?.footer, sectionTemplates.chrome)}
+    </div></div>`;
+  }
 
-  if (pages.includes("services")) out.services = `<div class="page" id="page-services">
+  if (pages.includes("services")) {
+    const templateId = sectionTemplates.services;
+    const content = resolveContent(templateId, overrides);
+    out.services = `<div data-template="${templateId}"><div class="page" id="page-services">
     <section data-stagger>
       <div class="eyebrow rv">Services</div>
       <h1 class="rv" style="font-size:clamp(32px,4vw,48px); max-width:14ch;">${content.services.h1}</h1>
@@ -710,10 +737,14 @@ function pagesFor(
       <div class="grid3">${content.services.items.map((it, i) => `<div class="card rv"><span class="num">0${i + 1}</span><div class="card-icon"></div><h3>${it.title}</h3><p>${it.body}</p></div>`).join("")}</div>
     </section>
     <section><div class="cta-band rv"><h2>${content.services.ctaTitle}</h2><p>${content.services.ctaBody}</p><div class="hero-actions"><a class="btn btn-primary" data-nav="contact">${content.home.cta1}</a></div></div></section>
-    ${footerHTML(brand, pages, overrides?.footer)}
-  </div>`;
+    ${footerHTML(brand, pages, overrides?.footer, sectionTemplates.chrome)}
+    </div></div>`;
+  }
 
-  if (pages.includes("contact")) out.contact = `<div class="page" id="page-contact">
+  if (pages.includes("contact")) {
+    const templateId = sectionTemplates.contact;
+    const content = resolveContent(templateId, overrides);
+    out.contact = `<div data-template="${templateId}"><div class="page" id="page-contact">
     <section class="split" data-stagger>
       <div>
         <div class="eyebrow rv">Contact</div>
@@ -728,10 +759,13 @@ function pagesFor(
         <p class="form-note">We reply within one business day.</p>
       </form>
     </section>
-    ${footerHTML(brand, pages, overrides?.footer)}
-  </div>`;
+    ${footerHTML(brand, pages, overrides?.footer, sectionTemplates.chrome)}
+    </div></div>`;
+  }
 
-  if (pages.includes("login")) out.login = `<div class="page" id="page-login">
+  if (pages.includes("login")) {
+    const templateId = sectionTemplates.login;
+    out.login = `<div data-template="${templateId}"><div class="page" id="page-login">
     <div class="login-wrap">
       <form class="login-card rv">
         <h2>Welcome back</h2>
@@ -742,10 +776,24 @@ function pagesFor(
         <p class="login-alt">New here? <a data-nav="contact" style="color:var(--primary); font-weight:600;">Get in touch</a></p>
       </form>
     </div>
-    ${footerHTML(brand, pages, overrides?.footer)}
-  </div>`;
+    ${footerHTML(brand, pages, overrides?.footer, sectionTemplates.chrome)}
+    </div></div>`;
+  }
 
   return out;
+}
+
+/** Resolves which template governs each independent section — falls back to the project's base `templateId` for any section without an explicit override, so "common" mode (no overrides at all) is just this returning the same value six times. */
+function resolveSectionTemplates(config: PrototypeConfig): Record<SectionKey, TemplateId> {
+  const fallback = config.templateId;
+  return {
+    chrome: config.sectionTemplates?.chrome ?? fallback,
+    home: config.sectionTemplates?.home ?? fallback,
+    about: config.sectionTemplates?.about ?? fallback,
+    services: config.sectionTemplates?.services ?? fallback,
+    contact: config.sectionTemplates?.contact ?? fallback,
+    login: config.sectionTemplates?.login ?? fallback,
+  };
 }
 
 /** The template's built-in default content for one page — used to pre-fill an editor form before any override exists. */
@@ -765,7 +813,8 @@ export function getDefaultPageContent<P extends "home" | "about" | "services" | 
 export function buildPrototypeDoc(config: PrototypeConfig): string {
   const meta = TEMPLATE_META[config.templateId];
   const brand = config.brandName?.trim() || meta.name;
-  const pageMarkup = pagesFor(config.templateId, config.pages, brand, config.contentOverrides);
+  const sectionTemplates = resolveSectionTemplates(config);
+  const pageMarkup = pagesFor(sectionTemplates, config.pages, brand, config.contentOverrides);
   const body = config.pages.map(p => pageMarkup[p] || "").join("\n");
   return `<!doctype html><html><head><meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -773,8 +822,8 @@ export function buildPrototypeDoc(config: PrototypeConfig): string {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>${buildStyle()}</style>
   </head>
-  <body data-template="${config.templateId}" data-theme="${config.themeId}" data-motion="${config.motionId}" style="--stagger-ms:${MOTION[config.motionId].stagger}">
-  ${navHTML(config.pages, brand, config.contentOverrides?.nav)}
+  <body data-theme="${config.themeId}" data-motion="${config.motionId}" style="--stagger-ms:${MOTION[config.motionId].stagger}">
+  ${navHTML(config.pages, brand, config.contentOverrides?.nav, sectionTemplates.chrome)}
   ${body}
   <script>${SHARED_SCRIPT}</script>
   </body></html>`;

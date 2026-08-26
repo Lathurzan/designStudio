@@ -2,15 +2,17 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { getDefaultPageContent, type ContentHome } from "@/lib/templateEngine";
+import { nextStepPath } from "@/lib/setupFlow";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Spinner from "@/components/ui/Spinner";
 import ScaledFrame from "@/components/project/ScaledFrame";
 import TitleBodyListEditor from "@/components/project/TitleBodyListEditor";
+import SetupFlowBar from "@/components/project/SetupFlowBar";
 import type { Project } from "@/types";
 
 interface PageProps {
@@ -20,6 +22,9 @@ interface PageProps {
 export default function EditHomePage({ params }: PageProps) {
   const { projectId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isSetupFlow = searchParams.get("flow") === "setup";
+
   const [project, setProject] = useState<Project | null>(null);
   const [content, setContent] = useState<ContentHome | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -48,12 +53,16 @@ export default function EditHomePage({ params }: PageProps) {
   }
 
   async function handleSave() {
-    if (!content) return;
+    if (!content || !project) return;
     setSaving(true);
     setSaveError("");
     setSaveSuccess("");
     try {
       const updated = await api.updatePageContent(projectId, "home", content);
+      if (isSetupFlow) {
+        router.push(nextStepPath(projectId, updated.pages, "home"));
+        return;
+      }
       setProject(updated);
       setSaveSuccess("Saved.");
     } catch (err) {
@@ -61,6 +70,11 @@ export default function EditHomePage({ params }: PageProps) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleSkip() {
+    if (!project) return;
+    router.push(nextStepPath(projectId, project.pages, "home"));
   }
 
   // ---- stats array helpers ----
@@ -112,6 +126,8 @@ export default function EditHomePage({ params }: PageProps) {
         ← Back to project
       </button>
 
+      {isSetupFlow && <SetupFlowBar pages={project.pages} currentStepId="home" onSkip={handleSkip} />}
+
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Edit Home page</h1>
@@ -123,7 +139,7 @@ export default function EditHomePage({ params }: PageProps) {
             Reset to default
           </Button>
           <Button type="button" loading={saving} onClick={handleSave}>
-            Save
+            {isSetupFlow ? "Save & continue" : "Save"}
           </Button>
         </div>
       </div>

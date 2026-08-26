@@ -1,17 +1,16 @@
-// app/dashboard/projects/[projectId]/edit/about/page.tsx
+// app/dashboard/projects/[projectId]/edit/nav-footer/page.tsx
 "use client";
 
 import { useEffect, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
-import { getDefaultPageContent, type ContentAbout } from "@/lib/templateEngine";
+import { NAV_DEFAULTS, FOOTER_DEFAULTS, type ContentNav, type ContentFooter, type PageId } from "@/lib/templateEngine";
 import { nextStepPath } from "@/lib/setupFlow";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Spinner from "@/components/ui/Spinner";
 import ScaledFrame from "@/components/project/ScaledFrame";
-import TitleBodyListEditor from "@/components/project/TitleBodyListEditor";
 import SetupFlowBar from "@/components/project/SetupFlowBar";
 import type { Project } from "@/types";
 
@@ -19,14 +18,15 @@ interface PageProps {
   params: Promise<{ projectId: string }>;
 }
 
-export default function EditAboutPage({ params }: PageProps) {
+export default function EditNavFooterPage({ params }: PageProps) {
   const { projectId } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
   const isSetupFlow = searchParams.get("flow") === "setup";
 
   const [project, setProject] = useState<Project | null>(null);
-  const [content, setContent] = useState<ContentAbout | null>(null);
+  const [nav, setNav] = useState<ContentNav | null>(null);
+  const [footer, setFooter] = useState<ContentFooter | null>(null);
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -37,30 +37,32 @@ export default function EditAboutPage({ params }: PageProps) {
       .getProject(projectId)
       .then((p) => {
         setProject(p);
-        setContent(p.content?.about ?? getDefaultPageContent(p.templateId, "about"));
+        setNav(p.content?.nav ?? NAV_DEFAULTS);
+        setFooter(p.content?.footer ?? FOOTER_DEFAULTS);
       })
       .catch((err: unknown) => setLoadError(err instanceof Error ? err.message : "Failed to load project"));
   }, [projectId]);
 
-  function update(patch: Partial<ContentAbout>) {
-    setContent((c) => (c ? { ...c, ...patch } : c));
-  }
-
   function resetToDefault() {
-    if (!project) return;
-    if (!confirm("Reset this page to the template's default content? Unsaved changes will be lost.")) return;
-    setContent(getDefaultPageContent(project.templateId, "about"));
+    if (!confirm("Reset the navbar and footer to their default text? Unsaved changes will be lost.")) return;
+    setNav(NAV_DEFAULTS);
+    setFooter(FOOTER_DEFAULTS);
   }
 
   async function handleSave() {
-    if (!content || !project) return;
+    if (!nav || !footer || !project) return;
     setSaving(true);
     setSaveError("");
     setSaveSuccess("");
     try {
-      const updated = await api.updatePageContent(projectId, "about", content);
+      // sequential, not Promise.all — these are two separate read-modify-write requests
+      // against the same project.content object; running them concurrently could let
+      // whichever finishes second silently overwrite the other's change
+      await api.updatePageContent(projectId, "nav", nav);
+      const updated = await api.updatePageContent(projectId, "footer", footer);
       if (isSetupFlow) {
-        router.push(nextStepPath(projectId, updated.pages, "about"));
+        // nav-footer is always the last step, so this lands on the finished project page
+        router.push(nextStepPath(projectId, updated.pages, "nav-footer"));
         return;
       }
       setProject(updated);
@@ -74,19 +76,24 @@ export default function EditAboutPage({ params }: PageProps) {
 
   function handleSkip() {
     if (!project) return;
-    router.push(nextStepPath(projectId, project.pages, "about"));
+    router.push(nextStepPath(projectId, project.pages, "nav-footer"));
   }
 
   if (loadError) return <p className="p-10 text-sm text-rose-600">{loadError}</p>;
-  if (!project || !content) return <Spinner />;
+  if (!project || !nav || !footer) return <Spinner />;
 
+  const previewPage: PageId = project.pages.includes("home") ? "home" : project.pages[0];
   const previewConfig = {
     templateId: project.templateId,
     themeId: project.themeId,
     motionId: project.motionId,
-    pages: ["about" as const],
+    pages: [previewPage],
     brandName: project.brandName,
-    contentOverrides: { about: content },
+    contentOverrides: {
+      ...(project.content?.home ? { home: project.content.home } : {}),
+      nav,
+      footer,
+    },
   };
 
   return (
@@ -98,12 +105,12 @@ export default function EditAboutPage({ params }: PageProps) {
         ← Back to project
       </button>
 
-      {isSetupFlow && <SetupFlowBar pages={project.pages} currentStepId="about" onSkip={handleSkip} />}
+      {isSetupFlow && <SetupFlowBar pages={project.pages} currentStepId="nav-footer" onSkip={handleSkip} />}
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Edit About page</h1>
-          <p className="text-sm text-slate-500">{project.name}</p>
+          <h1 className="text-xl font-semibold text-slate-900">Edit navbar &amp; footer</h1>
+          <p className="text-sm text-slate-500">{project.name} — shared across every page</p>
         </div>
         <div className="flex items-center gap-3">
           {saveSuccess && <span className="text-sm text-emerald-600">{saveSuccess}</span>}
@@ -111,7 +118,7 @@ export default function EditAboutPage({ params }: PageProps) {
             Reset to default
           </Button>
           <Button type="button" loading={saving} onClick={handleSave}>
-            {isSetupFlow ? "Save & continue" : "Save"}
+            {isSetupFlow ? "Finish setup" : "Save"}
           </Button>
         </div>
       </div>
@@ -121,53 +128,40 @@ export default function EditAboutPage({ params }: PageProps) {
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           <Card className="space-y-4 p-5">
-            <h2 className="text-sm font-semibold text-slate-800">Header</h2>
+            <h2 className="text-sm font-semibold text-slate-800">Navbar</h2>
             <Input
-              label="Headline"
-              name="h1"
-              textarea
-              value={content.h1}
-              onChange={(e) => update({ h1: e.target.value })}
+              label="Primary button text"
+              name="navCta"
+              value={nav.ctaText}
+              onChange={(e) => setNav({ ...nav, ctaText: e.target.value })}
             />
             <Input
-              label="Subheading"
-              name="lede"
-              textarea
-              value={content.lede}
-              onChange={(e) => update({ lede: e.target.value })}
+              label="Login button text"
+              name="navLogin"
+              value={nav.loginText}
+              onChange={(e) => setNav({ ...nav, loginText: e.target.value })}
             />
+            <p className="text-xs text-slate-400">The login button only shows if the Login page is included.</p>
           </Card>
 
           <Card className="space-y-4 p-5">
-            <h2 className="text-sm font-semibold text-slate-800">Values</h2>
+            <h2 className="text-sm font-semibold text-slate-800">Footer</h2>
             <Input
-              label="Section heading"
-              name="valuesHeading"
-              value={content.valuesHeading}
-              onChange={(e) => update({ valuesHeading: e.target.value })}
-            />
-            <TitleBodyListEditor
-              items={content.values}
-              itemLabel="value"
-              onChange={(values) => update({ values })}
-            />
-          </Card>
-
-          <Card className="space-y-4 p-5">
-            <h2 className="text-sm font-semibold text-slate-800">Call-to-action</h2>
-            <Input
-              label="Title"
-              name="ctaTitle"
-              value={content.ctaTitle}
-              onChange={(e) => update({ ctaTitle: e.target.value })}
+              label="Tagline"
+              name="footerTagline"
+              value={footer.tagline}
+              onChange={(e) => setFooter({ ...footer, tagline: e.target.value })}
             />
             <Input
-              label="Body"
-              name="ctaBody"
+              label="Bottom note"
+              name="footerNote"
               textarea
-              value={content.ctaBody}
-              onChange={(e) => update({ ctaBody: e.target.value })}
+              value={footer.bottomNote}
+              onChange={(e) => setFooter({ ...footer, bottomNote: e.target.value })}
             />
+            <p className="text-xs text-slate-400">
+              Shown as: © {new Date().getFullYear()} {project.brandName || "Business name"}. {footer.bottomNote}
+            </p>
           </Card>
         </div>
 

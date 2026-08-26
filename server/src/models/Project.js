@@ -34,7 +34,11 @@ const projectSchema = new mongoose.Schema(
     shareToken: { type: String, required: true, unique: true, index: true },
 
     // ---- template/theme/motion/pages config — mirrors lib/templateEngine.ts on the frontend ----
-    templateId: { type: String, enum: ["modern", "minimal", "bold"], default: "modern" },
+        templateId: { type: String, enum: ["modern", "minimal", "bold"], default: "modern" },
+    // "One by one" mode — lets specific sections (chrome/home/about/services/contact/login)
+    // use a different template than templateId (the default/"common" fallback). Mixed since
+    // it's a small, sparse partial map — mirrors PrototypeConfig["sectionTemplates"] on the frontend.
+    sectionTemplates: { type: mongoose.Schema.Types.Mixed, default: {} },
     themeId: {
       type: String,
       enum: ["blue", "green", "purple", "orange", "dark", "neutral"],

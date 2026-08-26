@@ -7,13 +7,28 @@ import type {
   ThemeId,
   MotionId,
   PageId,
+  SectionKey,
   ContentHome,
   ContentAbout,
   ContentServices,
   ContentContact,
+  ContentNav,
+  ContentFooter,
 } from "@/lib/templateEngine";
 
-export type { TemplateId, ThemeId, MotionId, PageId, ContentHome, ContentAbout, ContentServices, ContentContact };
+export type {
+  TemplateId,
+  ThemeId,
+  MotionId,
+  PageId,
+  SectionKey,
+  ContentHome,
+  ContentAbout,
+  ContentServices,
+  ContentContact,
+  ContentNav,
+  ContentFooter,
+};
 
 export type ProjectStatus = "draft" | "in_review" | "changes_requested" | "approved";
 
@@ -42,6 +57,8 @@ export interface ProjectContent {
   about?: ContentAbout | null;
   services?: ContentServices | null;
   contact?: ContentContact | null;
+  nav?: ContentNav | null;
+  footer?: ContentFooter | null;
 }
 
 // Full project shape — what the freelancer sees (GET /api/projects, /api/projects/:id).
@@ -59,6 +76,7 @@ export interface Project {
   motionId: MotionId;
   pages: PageId[];
   brandName?: string;
+  sectionTemplates?: Partial<Record<SectionKey, TemplateId>>;
   content?: ProjectContent;
   files: ProjectFile[];
   comments: ProjectComment[];
@@ -76,6 +94,7 @@ export interface PublicProject {
   motionId: MotionId;
   pages: PageId[];
   brandName?: string;
+  sectionTemplates?: Partial<Record<SectionKey, TemplateId>>;
   content?: ProjectContent;
   files: ProjectFile[];
   comments: ProjectComment[];
