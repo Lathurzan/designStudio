@@ -4,18 +4,20 @@
 // three content editors agree on what "next" means without duplicating it.
 import type { PageId } from "./templateEngine";
 
-export type SetupStepId = "home" | "about" | "nav-footer";
+export type SetupStepId = "home" | "about" | "services" | "contact" | "nav-footer";
 
 export interface SetupStep {
   id: SetupStepId;
   label: string;
 }
 
-/** Which steps apply to this project — skips About if the freelancer didn't select that page; Navbar & Footer always applies since it's shared across every page regardless. */
+/** Which steps apply to this project — includes selected pages, plus Navbar & Footer. */
 export function getSetupSteps(pages: PageId[]): SetupStep[] {
   const steps: SetupStep[] = [];
   if (pages.includes("home")) steps.push({ id: "home", label: "Home" });
   if (pages.includes("about")) steps.push({ id: "about", label: "About" });
+  if (pages.includes("services")) steps.push({ id: "services", label: "Services" });
+  if (pages.includes("contact")) steps.push({ id: "contact", label: "Contact" });
   steps.push({ id: "nav-footer", label: "Navbar & Footer" });
   return steps;
 }

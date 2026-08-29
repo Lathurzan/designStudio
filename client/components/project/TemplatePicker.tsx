@@ -1,13 +1,4 @@
 // components/project/TemplatePicker.tsx
-// Lets a freelancer pick Template + Theme + Motion + Pages, with real live
-// iframe previews at every level (not colour circles, not screenshots) —
-// reuses the exact same buildPrototypeDoc() that renders the client's
-// actual preview page later, so what you pick here is what they'll see.
-// Also handles "one by one" mode: per-section template overrides. The Live
-// preview panel at the bottom needs zero special-casing for this — it
-// already renders buildPrototypeDoc(value), which respects
-// value.sectionTemplates automatically. Click through the nav inside it
-// (it's interactive) to see how each mixed section actually looks.
 "use client";
 
 import { useState } from "react";
@@ -25,23 +16,25 @@ import {
   type PrototypeConfig,
 } from "@/lib/templateEngine";
 import ScaledFrame from "./ScaledFrame";
+import ResponsiveDeviceFrame from "./ResponsiveDeviceFrame";
 
 const TEMPLATE_IDS = Object.keys(TEMPLATE_META) as TemplateId[];
 const THEME_IDS = Object.keys(THEMES) as ThemeId[];
 const MOTION_IDS = Object.keys(MOTION) as MotionId[];
 
-const SECTION_ROWS: { key: SectionKey; label: string }[] = [
-  { key: "chrome", label: "Navbar & Footer" },
-  { key: "home", label: "Home" },
-  { key: "about", label: "About" },
-  { key: "services", label: "Services" },
-  { key: "contact", label: "Contact" },
-  { key: "login", label: "Login" },
+const SECTION_ROWS: { key: SectionKey; label: string; icon: string }[] = [
+  { key: "chrome", label: "Navbar & Footer", icon: "🌐" },
+  { key: "home", label: "Home Page", icon: "🏠" },
+  { key: "about", label: "About Page", icon: "📖" },
+  { key: "services", label: "Services Page", icon: "💼" },
+  { key: "contact", label: "Contact Page", icon: "✉️" },
+  { key: "login", label: "Login Page", icon: "🔐" },
 ];
 
 interface TemplatePickerProps {
   value: PrototypeConfig;
   onChange: (config: PrototypeConfig) => void;
+  showPreview?: boolean;
 }
 
 function hasAnyOverride(config: PrototypeConfig): boolean {
@@ -50,7 +43,7 @@ function hasAnyOverride(config: PrototypeConfig): boolean {
   );
 }
 
-export default function TemplatePicker({ value, onChange }: TemplatePickerProps) {
+export default function TemplatePicker({ value, onChange, showPreview = true }: TemplatePickerProps) {
   const [showAdvanced, setShowAdvanced] = useState(hasAnyOverride(value));
 
   function update(patch: Partial<PrototypeConfig>) {
@@ -58,7 +51,7 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
   }
 
   function togglePage(page: PageId) {
-    if (page === "home") return; // always required — the client always has a landing page
+    if (page === "home") return; // always required
     const has = value.pages.includes(page);
     const next = has
       ? value.pages.filter((p) => p !== page)
@@ -68,7 +61,6 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
 
   function toggleAdvanced() {
     if (showAdvanced) {
-      // switching back to "Common" — clear every per-section override
       setShowAdvanced(false);
       onChange({ ...value, sectionTemplates: undefined });
     } else {
@@ -94,7 +86,10 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
     <div className="space-y-8">
       {/* ---------- template ---------- */}
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">Choose a template</h3>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900">01. Starting Design Template</h3>
+          <span className="text-xs text-slate-400">3 Curated Aesthetics</span>
+        </div>
         <div className="grid gap-4 sm:grid-cols-3">
           {TEMPLATE_IDS.map((tid) => {
             const meta = TEMPLATE_META[tid];
@@ -104,31 +99,50 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
                 key={tid}
                 type="button"
                 onClick={() => update({ templateId: tid, themeId: meta.defaultTheme })}
-                className={`overflow-hidden rounded-2xl border-2 text-left transition-colors ${
-                  selected ? "border-indigo-600" : "border-slate-200 hover:border-slate-300"
+                className={`group relative overflow-hidden rounded-2xl border-2 text-left transition-all duration-200 ${
+                  selected
+                    ? "border-indigo-600 shadow-md ring-2 ring-indigo-500/20"
+                    : "border-slate-200 hover:border-slate-300 hover:shadow-xs"
                 }`}
               >
-                <ScaledFrame
-                  config={{ templateId: tid, themeId: meta.defaultTheme, motionId: "smooth", pages: ["home"] }}
-                  cropHeight={140}
-                />
-                <div className="p-3">
-                  <p className="text-sm font-semibold text-slate-900">{meta.layoutName}</p>
-                  <p className="text-xs text-slate-500">{meta.tagline}</p>
+                {selected && (
+                  <div className="absolute right-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm">
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                )}
+                <div className="overflow-hidden bg-slate-100">
+                  <ScaledFrame
+                    config={{ templateId: tid, themeId: meta.defaultTheme, motionId: "smooth", pages: ["home"] }}
+                    cropHeight={140}
+                  />
+                </div>
+                <div className="bg-white p-3.5 border-t border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-slate-900">{meta.layoutName}</p>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                      {meta.category}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500 line-clamp-1">{meta.tagline}</p>
                 </div>
               </button>
             );
           })}
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          This is the default — every section uses it unless you customize one below.
+          This applies as the default layout — you can mix and match individual sections below.
         </p>
       </div>
 
       {/* ---------- theme ---------- */}
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">Colour</h3>
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900">02. Curated Colour Palette</h3>
+          <span className="text-xs text-slate-400">Applied Site-Wide</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
           {THEME_IDS.map((thid) => {
             const t = THEMES[thid];
             const selected = value.themeId === thid;
@@ -138,25 +152,31 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
                 type="button"
                 onClick={() => update({ themeId: thid })}
                 title={t.vibe}
-                className={`overflow-hidden rounded-xl border-2 text-left transition-colors ${
-                  selected ? "border-indigo-600" : "border-slate-200 hover:border-slate-300"
+                className={`flex flex-col items-start overflow-hidden rounded-xl border-2 p-2.5 text-left transition-all ${
+                  selected
+                    ? "border-indigo-600 bg-indigo-50/40 ring-2 ring-indigo-500/20"
+                    : "border-slate-200 hover:border-slate-300"
                 }`}
               >
-                <ScaledFrame
-                  config={{ templateId: value.templateId, themeId: thid, motionId: value.motionId, pages: ["home"] }}
-                  cropHeight={72}
-                />
-                <p className="px-2 py-1.5 text-[11px] font-medium text-slate-700">{t.label}</p>
+                <div className="flex items-center gap-1.5 w-full mb-2">
+                  <span className="h-4 w-4 rounded-full border border-black/10 shadow-xs" style={{ backgroundColor: t.primary }} />
+                  <span className="h-4 w-4 rounded-full border border-black/10 shadow-xs" style={{ backgroundColor: t.accent }} />
+                  <span className="h-4 w-4 rounded-full border border-black/10 shadow-xs" style={{ backgroundColor: t.c900 }} />
+                </div>
+                <p className="text-xs font-bold text-slate-900">{t.label}</p>
+                <p className="text-[10px] text-slate-500 truncate w-full">{t.vibe}</p>
               </button>
             );
           })}
         </div>
-        <p className="mt-2 text-xs text-slate-400">Colour and motion always apply site-wide — only layout can be mixed per section.</p>
       </div>
 
       {/* ---------- motion ---------- */}
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">Motion</h3>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900">03. Animation &amp; Motion Feel</h3>
+          <span className="text-xs text-slate-400">Timing &amp; Reveal Physics</span>
+        </div>
         <div className="grid gap-3 sm:grid-cols-3">
           {MOTION_IDS.map((mid) => {
             const m = MOTION[mid];
@@ -166,11 +186,16 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
                 key={mid}
                 type="button"
                 onClick={() => update({ motionId: mid })}
-                className={`rounded-xl border-2 p-4 text-left transition-colors ${
-                  selected ? "border-indigo-600 bg-indigo-50" : "border-slate-200 hover:border-slate-300"
+                className={`rounded-xl border-2 p-3.5 text-left transition-all ${
+                  selected
+                    ? "border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-500/20"
+                    : "border-slate-200 hover:border-slate-300"
                 }`}
               >
-                <p className="mb-1 text-sm font-semibold text-slate-900">{m.label}</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-bold text-slate-900">{m.label}</p>
+                  <span className="font-mono text-[10px] text-slate-400">{m.dur}</span>
+                </div>
                 <p className="text-xs text-slate-500">{m.copy}</p>
               </button>
             );
@@ -180,7 +205,10 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
 
       {/* ---------- pages ---------- */}
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">Pages</h3>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900">04. Included Pages</h3>
+          <span className="text-xs text-slate-400">Toggle Navigation Tabs</span>
+        </div>
         <div className="flex flex-wrap gap-2">
           {PAGE_ORDER.map((p) => {
             const on = value.pages.includes(p);
@@ -191,12 +219,15 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
                 type="button"
                 disabled={locked}
                 onClick={() => togglePage(p)}
-                className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
-                  on ? "border-indigo-600 bg-indigo-600 text-white" : "border-slate-300 text-slate-600 hover:border-indigo-400"
-                } ${locked ? "cursor-not-allowed opacity-70" : ""}`}
+                className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold transition-all ${
+                  on
+                    ? "border-indigo-600 bg-indigo-600 text-white shadow-xs"
+                    : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400 hover:text-indigo-600"
+                } ${locked ? "cursor-not-allowed opacity-75" : ""}`}
               >
+                {on && <span>✓</span>}
                 {PAGE_LABELS[p]}
-                {locked ? " (always on)" : ""}
+                {locked && <span className="text-[10px] opacity-80">(Required)</span>}
               </button>
             );
           })}
@@ -204,43 +235,46 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
       </div>
 
       {/* ---------- per-section templates ("one by one" mode) ---------- */}
-      <div>
-        <div className="mb-3 flex items-center justify-between">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Per-section templates</h3>
-            <p className="text-xs text-slate-400">
+            <h3 className="text-sm font-bold text-slate-900">05. Design Flexibility Mode</h3>
+            <p className="text-xs text-slate-500">
               {showAdvanced
-                ? "Pick a different template for any section — leave the rest on the default."
-                : "Every section currently uses the same template above."}
+                ? "One-by-one mode: Mix and match templates section by section (e.g. Modern nav with Minimal about)."
+                : "Common mode: One unified template applies across the whole website."}
             </p>
           </div>
           <button
             type="button"
             onClick={toggleAdvanced}
-            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all ${
               showAdvanced
-                ? "border-indigo-600 bg-indigo-600 text-white"
-                : "border-slate-300 text-slate-600 hover:border-indigo-400"
+                ? "border-indigo-600 bg-indigo-600 text-white shadow-xs"
+                : "border-slate-300 bg-white text-slate-700 hover:border-indigo-400"
             }`}
           >
-            {showAdvanced ? "One by one" : "Common"}
+            <span>{showAdvanced ? "⚡ One by one (Active)" : "✨ Switch to One by One"}</span>
           </button>
         </div>
 
         {showAdvanced && (
-          <div className="space-y-1 rounded-xl border border-slate-200 p-3">
+          <div className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
             {visibleSectionRows.map((row) => (
-              <div key={row.key} className="flex items-center justify-between gap-3 py-1.5">
-                <span className="text-sm text-slate-700">{row.label}</span>
+              <div key={row.key} className="flex flex-wrap items-center justify-between gap-3 py-2 border-b border-slate-100 last:border-0">
+                <div className="flex items-center gap-2">
+                  <span>{row.icon}</span>
+                  <span className="text-xs font-semibold text-slate-800">{row.label}</span>
+                </div>
                 <select
                   value={value.sectionTemplates?.[row.key] ?? ""}
                   onChange={(e) => updateSectionTemplate(row.key, e.target.value as TemplateId | "")}
-                  className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  className="rounded-lg border border-slate-300 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 focus:border-indigo-500 focus:bg-white focus:outline-none"
                 >
-                  <option value="">Same as default ({TEMPLATE_META[value.templateId].layoutName})</option>
+                  <option value="">Default ({TEMPLATE_META[value.templateId].layoutName})</option>
                   {TEMPLATE_IDS.map((tid) => (
                     <option key={tid} value={tid}>
-                      {TEMPLATE_META[tid].layoutName}
+                      {TEMPLATE_META[tid].layoutName} ({TEMPLATE_META[tid].category})
                     </option>
                   ))}
                 </select>
@@ -250,18 +284,19 @@ export default function TemplatePicker({ value, onChange }: TemplatePickerProps)
         )}
       </div>
 
-      {/* ---------- live preview ---------- */}
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">Live preview</h3>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-          <ScaledFrame config={value} cropHeight={460} interactive />
+      {/* ---------- live preview canvas ---------- */}
+      {showPreview && (
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900">06. Live Scrollable &amp; Clickable Canvas</h3>
+            <span className="text-xs text-slate-400">Interactive Multi-Device Canvas</span>
+          </div>
+          <ResponsiveDeviceFrame
+            config={value}
+            title={`${TEMPLATE_META[value.templateId].layoutName} Prototype`}
+          />
         </div>
-        {showAdvanced && (
-          <p className="mt-2 text-xs text-slate-400">
-            Click through the nav above to see each page's actual template — the preview is fully interactive.
-          </p>
-        )}
-      </div>
+      )}
     </div>
   );
 }

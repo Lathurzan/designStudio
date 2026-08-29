@@ -1,10 +1,10 @@
-// app/dashboard/projects/[projectId]/edit/about/page.tsx
+// app/dashboard/projects/[projectId]/edit/services/page.tsx
 "use client";
 
 import { useEffect, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
-import { getDefaultPageContent, type ContentAbout } from "@/lib/templateEngine";
+import { getDefaultPageContent, type ContentServices } from "@/lib/templateEngine";
 import { nextStepPath } from "@/lib/setupFlow";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
@@ -20,14 +20,14 @@ interface PageProps {
   params: Promise<{ projectId: string }>;
 }
 
-export default function EditAboutPage({ params }: PageProps) {
+export default function EditServicesPage({ params }: PageProps) {
   const { projectId } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
   const isSetupFlow = searchParams.get("flow") === "setup";
 
   const [project, setProject] = useState<Project | null>(null);
-  const [content, setContent] = useState<ContentAbout | null>(null);
+  const [content, setContent] = useState<ContentServices | null>(null);
   const [activeSectionId, setActiveSectionId] = useState("hero");
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -39,19 +39,19 @@ export default function EditAboutPage({ params }: PageProps) {
       .getProject(projectId)
       .then((p) => {
         setProject(p);
-        setContent(p.content?.about ?? getDefaultPageContent(p.templateId, "about"));
+        setContent(p.content?.services ?? getDefaultPageContent(p.templateId, "services"));
       })
       .catch((err: unknown) => setLoadError(err instanceof Error ? err.message : "Failed to load project"));
   }, [projectId]);
 
-  function update(patch: Partial<ContentAbout>) {
+  function update(patch: Partial<ContentServices>) {
     setContent((c) => (c ? { ...c, ...patch } : c));
   }
 
   function resetToDefault() {
     if (!project) return;
     if (!confirm("Reset this page to the template's default content? Unsaved changes will be lost.")) return;
-    setContent(getDefaultPageContent(project.templateId, "about"));
+    setContent(getDefaultPageContent(project.templateId, "services"));
   }
 
   async function handleSave() {
@@ -60,9 +60,9 @@ export default function EditAboutPage({ params }: PageProps) {
     setSaveError("");
     setSaveSuccess("");
     try {
-      const updated = await api.updatePageContent(projectId, "about", content);
+      const updated = await api.updatePageContent(projectId, "services", content);
       if (isSetupFlow) {
-        router.push(nextStepPath(projectId, updated.pages, "about"));
+        router.push(nextStepPath(projectId, updated.pages, "services"));
         return;
       }
       setProject(updated);
@@ -77,7 +77,7 @@ export default function EditAboutPage({ params }: PageProps) {
 
   function handleSkip() {
     if (!project) return;
-    router.push(nextStepPath(projectId, project.pages, "about"));
+    router.push(nextStepPath(projectId, project.pages, "services"));
   }
 
   function scrollToSection(id: string) {
@@ -86,24 +86,24 @@ export default function EditAboutPage({ params }: PageProps) {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
-  function updateValue(i: number, patch: Partial<{ title: string; body: string; image?: string }>) {
+  function updateServiceItem(i: number, patch: Partial<{ title: string; body: string; image?: string; icon?: string }>) {
     if (!content) return;
     update({
-      values: content.values.map((v, idx) => (idx === i ? { ...v, ...patch } : v)),
+      items: content.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)),
     });
   }
 
-  function addValue() {
+  function addServiceItem() {
     if (!content) return;
     update({
-      values: [...content.values, { title: "New Principle", body: "Description of the value or approach." }],
+      items: [...content.items, { title: "New Service Offering", body: "Comprehensive solution designed for client success." }],
     });
   }
 
-  function removeValue(i: number) {
+  function removeServiceItem(i: number) {
     if (!content) return;
     update({
-      values: content.values.filter((_, idx) => idx !== i),
+      items: content.items.filter((_, idx) => idx !== i),
     });
   }
 
@@ -111,18 +111,18 @@ export default function EditAboutPage({ params }: PageProps) {
   if (!project || !content) return <Spinner />;
 
   const sectionLayers: SectionLayerItem[] = [
-    { id: "hero", name: "About Story & Split Visual", isCustomized: Boolean(content.h1), hasImage: Boolean(content.heroImage) },
-    { id: "values", name: "Principles & Team Cards", isCustomized: content.values.length > 0, hasImage: content.values.some((v) => Boolean(v.image)) },
-    { id: "cta", name: "About CTA Band", isCustomized: Boolean(content.ctaTitle) },
+    { id: "hero", name: "Services Intro & Header", isCustomized: Boolean(content.h1), hasImage: Boolean(content.heroImage) },
+    { id: "grid", name: "Services Catalogue Grid", isCustomized: content.items.length > 0, hasImage: content.items.some((it) => Boolean(it.image)) },
+    { id: "cta", name: "Services CTA Band", isCustomized: Boolean(content.ctaTitle) },
   ];
 
   const previewConfig = {
     templateId: project.templateId,
     themeId: project.themeId,
     motionId: project.motionId,
-    pages: ["about" as const],
+    pages: ["services" as const],
     brandName: project.brandName,
-    contentOverrides: { about: content },
+    contentOverrides: { services: content },
   };
 
   return (
@@ -134,12 +134,12 @@ export default function EditAboutPage({ params }: PageProps) {
         ← Back to project overview
       </button>
 
-      {isSetupFlow && <SetupFlowBar pages={project.pages} currentStepId="about" onSkip={handleSkip} />}
+      {isSetupFlow && <SetupFlowBar pages={project.pages} currentStepId="services" onSkip={handleSkip} />}
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900">Edit About Page</h1>
+            <h1 className="text-xl font-bold text-slate-900">Edit Services Page</h1>
             <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-600">
               Section Editor
             </span>
@@ -165,24 +165,24 @@ export default function EditAboutPage({ params }: PageProps) {
             sections={sectionLayers}
             activeSectionId={activeSectionId}
             onSelectSection={scrollToSection}
-            pageTitle="About"
+            pageTitle="Services"
           />
 
           {/* Section: Hero */}
           <div id="section-card-hero">
             <Card className={`space-y-4 p-5 transition-all ${activeSectionId === "hero" ? "ring-2 ring-indigo-500" : ""}`}>
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-slate-900">01. About Story &amp; Split Visual</h2>
-                <span className="text-[11px] text-slate-400">Header &amp; Photo</span>
+                <h2 className="text-sm font-bold text-slate-900">01. Services Headline &amp; Cover</h2>
+                <span className="text-[11px] text-slate-400">Title &amp; Intro</span>
               </div>
 
               <ImageSlotPicker
-                label="Story Showcase Image / Studio Photo"
+                label="Services Cover Visual (Optional)"
                 value={content.heroImage || ""}
                 onChange={(url) => update({ heroImage: url })}
                 projectId={projectId}
                 projectFiles={project.files}
-                hint="Add team, studio, or founder photo. Leave blank for generative visual."
+                hint="Add visual mockup, service banner, or photo illustration."
               />
 
               <Input
@@ -191,70 +191,62 @@ export default function EditAboutPage({ params }: PageProps) {
                 textarea
                 value={content.h1}
                 onChange={(e) => update({ h1: e.target.value })}
-                placeholder="Founded on one simple rule: ..."
+                placeholder="Practical help, not theory."
               />
               <Input
-                label="Story / Introduction"
+                label="Intro / Overview Subheading"
                 name="lede"
                 textarea
                 value={content.lede}
                 onChange={(e) => update({ lede: e.target.value })}
-                placeholder="How the studio or consulting firm was started..."
+                placeholder="Every engagement starts with the same question: ..."
               />
             </Card>
           </div>
 
-          {/* Section: Values & Team Cards */}
-          <div id="section-card-values">
-            <Card className={`space-y-4 p-5 transition-all ${activeSectionId === "values" ? "ring-2 ring-indigo-500" : ""}`}>
+          {/* Section: Services Grid */}
+          <div id="section-card-grid">
+            <Card className={`space-y-4 p-5 transition-all ${activeSectionId === "grid" ? "ring-2 ring-indigo-500" : ""}`}>
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-slate-900">02. Principles &amp; Values Cards</h2>
-                <Button type="button" variant="ghost" size="sm" onClick={addValue}>
-                  + Add Card
+                <h2 className="text-sm font-bold text-slate-900">02. Services Catalogue Offerings</h2>
+                <Button type="button" variant="ghost" size="sm" onClick={addServiceItem}>
+                  + Add Service
                 </Button>
               </div>
 
-              <Input
-                label="Section Heading"
-                name="valuesHeading"
-                value={content.valuesHeading}
-                onChange={(e) => update({ valuesHeading: e.target.value })}
-                placeholder="What that looks like in practice"
-              />
-
               <div className="space-y-4">
-                {content.values.map((v, i) => (
-                  <div key={i} className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 space-y-3">
+                {content.items.map((it, idx) => (
+                  <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-indigo-600">Principle #{i + 1}</span>
+                      <span className="text-xs font-bold text-indigo-600">Offering #{idx + 1}</span>
                       <button
                         type="button"
-                        onClick={() => removeValue(i)}
+                        onClick={() => removeServiceItem(idx)}
                         className="text-xs text-slate-400 hover:text-rose-600"
                       >
                         Remove
                       </button>
                     </div>
                     <ImageSlotPicker
-                      label="Visual Asset (Optional)"
-                      value={v.image || ""}
-                      onChange={(url) => updateValue(i, { image: url })}
+                      label="Service Card Visual / Photo (Optional)"
+                      value={it.image || ""}
+                      onChange={(url) => updateServiceItem(idx, { image: url })}
                       projectId={projectId}
                       projectFiles={project.files}
                       compact
                     />
                     <Input
-                      label="Title"
-                      name={`val-title-${i}`}
-                      value={v.title}
-                      onChange={(e) => updateValue(i, { title: e.target.value })}
+                      label="Service Title"
+                      name={`service-title-${idx}`}
+                      value={it.title}
+                      onChange={(e) => updateServiceItem(idx, { title: e.target.value })}
                     />
                     <Input
-                      label="Description"
-                      name={`val-body-${i}`}
+                      label="Service Description"
+                      name={`service-body-${idx}`}
                       textarea
-                      value={v.body}
-                      onChange={(e) => updateValue(i, { body: e.target.value })}
+                      value={it.body}
+                      onChange={(e) => updateServiceItem(idx, { body: e.target.value })}
                     />
                   </div>
                 ))}
@@ -265,7 +257,7 @@ export default function EditAboutPage({ params }: PageProps) {
           {/* Section: CTA */}
           <div id="section-card-cta">
             <Card className={`space-y-4 p-5 transition-all ${activeSectionId === "cta" ? "ring-2 ring-indigo-500" : ""}`}>
-              <h2 className="text-sm font-bold text-slate-900">03. About Call to Action</h2>
+              <h2 className="text-sm font-bold text-slate-900">03. Services Call to Action</h2>
               <Input
                 label="CTA Title"
                 name="ctaTitle"
@@ -288,7 +280,7 @@ export default function EditAboutPage({ params }: PageProps) {
           <div className="sticky top-6">
             <ResponsiveDeviceFrame
               config={previewConfig}
-              title={`Live Preview · About Page`}
+              title={`Live Preview · Services Page`}
             />
           </div>
         </div>

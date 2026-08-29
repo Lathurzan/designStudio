@@ -3,14 +3,16 @@
 
 import { ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "ghost" | "danger" | "dark";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "dark" | "outline";
 type Size = "sm" | "md" | "lg";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300",
+  primary: "bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300 shadow-xs",
+  secondary: "bg-slate-100 text-slate-800 hover:bg-slate-200 border border-slate-200",
   ghost: "bg-transparent text-slate-700 border border-slate-300 hover:border-indigo-400 hover:text-indigo-600",
+  outline: "bg-transparent text-indigo-600 border border-indigo-200 hover:bg-indigo-50",
   danger: "bg-rose-600 text-white hover:bg-rose-700 disabled:bg-rose-300",
-  dark: "bg-slate-900 text-white hover:bg-black",
+  dark: "bg-slate-900 text-white hover:bg-black shadow-xs",
 };
 
 const SIZES: Record<Size, string> = {

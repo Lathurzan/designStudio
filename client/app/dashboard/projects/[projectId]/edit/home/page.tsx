@@ -10,9 +10,11 @@ import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Spinner from "@/components/ui/Spinner";
-import ScaledFrame from "@/components/project/ScaledFrame";
-import TitleBodyListEditor from "@/components/project/TitleBodyListEditor";
+import ImageSlotPicker from "@/components/project/ImageSlotPicker";
+import SectionLayersNav, { type SectionLayerItem } from "@/components/project/SectionLayersNav";
+import ResponsiveDeviceFrame from "@/components/project/ResponsiveDeviceFrame";
 import SetupFlowBar from "@/components/project/SetupFlowBar";
+import TitleBodyListEditor from "@/components/project/TitleBodyListEditor";
 import type { Project } from "@/types";
 
 interface PageProps {
@@ -27,6 +29,7 @@ export default function EditHomePage({ params }: PageProps) {
 
   const [project, setProject] = useState<Project | null>(null);
   const [content, setContent] = useState<ContentHome | null>(null);
+  const [activeSectionId, setActiveSectionId] = useState("hero");
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -65,6 +68,7 @@ export default function EditHomePage({ params }: PageProps) {
       }
       setProject(updated);
       setSaveSuccess("Saved.");
+      setTimeout(() => setSaveSuccess(""), 3000);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -75,6 +79,12 @@ export default function EditHomePage({ params }: PageProps) {
   function handleSkip() {
     if (!project) return;
     router.push(nextStepPath(projectId, project.pages, "home"));
+  }
+
+  function scrollToSection(id: string) {
+    setActiveSectionId(id);
+    const el = document.getElementById(`section-card-${id}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   // ---- stats array helpers ----
@@ -105,8 +115,48 @@ export default function EditHomePage({ params }: PageProps) {
     update({ logos: [...content.logos, ""] });
   }
 
+  // ---- work items helpers ----
+  function updateWorkItem(i: number, patch: Partial<{ title: string; meta: string; body: string; image?: string }>) {
+    if (!content?.selectedWork) return;
+    update({
+      selectedWork: {
+        ...content.selectedWork,
+        items: content.selectedWork.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)),
+      },
+    });
+  }
+  function addWorkItem() {
+    if (!content?.selectedWork) return;
+    update({
+      selectedWork: {
+        ...content.selectedWork,
+        items: [...content.selectedWork.items, { title: "New Project", meta: "Category · 2026", body: "Description of the work delivered." }],
+      },
+    });
+  }
+  function removeWorkItem(i: number) {
+    if (!content?.selectedWork) return;
+    update({
+      selectedWork: {
+        ...content.selectedWork,
+        items: content.selectedWork.items.filter((_, idx) => idx !== i),
+      },
+    });
+  }
+
   if (loadError) return <p className="p-10 text-sm text-rose-600">{loadError}</p>;
   if (!project || !content) return <Spinner />;
+
+  const sectionLayers: SectionLayerItem[] = [
+    { id: "hero", name: "Hero Banner", isCustomized: Boolean(content.h1), hasImage: Boolean(content.heroImage) },
+    { id: "stats", name: "Stats Counter", isCustomized: content.stats.length > 0 },
+    { id: "logos", name: "Client Logos Strip", isCustomized: content.logos.length > 0 },
+    { id: "services", name: "Services Intro", isCustomized: Boolean(content.servicesHeading) },
+    ...(content.process ? [{ id: "process", name: "Process Flow", isCustomized: true }] : []),
+    ...(content.selectedWork ? [{ id: "work", name: "Selected Work", isCustomized: true, hasImage: content.selectedWork.items.some((i) => Boolean(i.image)) }] : []),
+    { id: "quote", name: "Client Testimonial", isCustomized: Boolean(content.quote), hasImage: Boolean(content.quoteAvatar) },
+    { id: "cta", name: "Call to Action Band", isCustomized: Boolean(content.ctaBandTitle) },
+  ];
 
   const previewConfig = {
     templateId: project.templateId,
@@ -118,280 +168,332 @@ export default function EditHomePage({ params }: PageProps) {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10">
       <button
         onClick={() => router.push(`/dashboard/projects/${projectId}`)}
-        className="mb-4 text-sm text-slate-400 hover:text-slate-700"
+        className="mb-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors"
       >
-        ← Back to project
+        ← Back to project overview
       </button>
 
       {isSetupFlow && <SetupFlowBar pages={project.pages} currentStepId="home" onSkip={handleSkip} />}
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      {/* Header bar */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-4">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Edit Home page</h1>
-          <p className="text-sm text-slate-500">{project.name}</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-slate-900">Edit Home Page</h1>
+            <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-600">
+              Section Editor
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">Project: {project.name}</p>
         </div>
         <div className="flex items-center gap-3">
-          {saveSuccess && <span className="text-sm text-emerald-600">{saveSuccess}</span>}
+          {saveSuccess && (
+            <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 animate-in fade-in">
+              ✓ {saveSuccess}
+            </span>
+          )}
           <Button variant="ghost" size="sm" type="button" onClick={resetToDefault}>
             Reset to default
           </Button>
           <Button type="button" loading={saving} onClick={handleSave}>
-            {isSetupFlow ? "Save & continue" : "Save"}
+            {isSetupFlow ? "Save & continue" : "Save Changes"}
           </Button>
         </div>
       </div>
 
-      {saveError && <p className="mb-4 text-sm text-rose-600">{saveError}</p>}
+      {saveError && <p className="mb-4 rounded-lg bg-rose-50 p-3 text-xs text-rose-600">{saveError}</p>}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-6">
-          <Card className="space-y-4 p-5">
-            <h2 className="text-sm font-semibold text-slate-800">Hero</h2>
-            <Input
-              label="Eyebrow tag"
-              name="eyebrow"
-              value={content.eyebrow}
-              onChange={(e) => update({ eyebrow: e.target.value })}
-            />
-            <Input
-              label="Headline"
-              name="h1"
-              textarea
-              value={content.h1}
-              onChange={(e) => update({ h1: e.target.value })}
-            />
-            <Input
-              label="Subheading"
-              name="lede"
-              textarea
-              value={content.lede}
-              onChange={(e) => update({ lede: e.target.value })}
-            />
-            <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-6 lg:grid-cols-12">
+        {/* Left Column: Figma-Style Section Inspector */}
+        <div className="space-y-6 lg:col-span-6">
+          {/* Visual Layers Navigator */}
+          <SectionLayersNav
+            sections={sectionLayers}
+            activeSectionId={activeSectionId}
+            onSelectSection={scrollToSection}
+            pageTitle="Home"
+          />
+
+          {/* Section: Hero */}
+          <div id="section-card-hero">
+            <Card className={`space-y-4 p-5 transition-all ${activeSectionId === "hero" ? "ring-2 ring-indigo-500" : ""}`}>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-slate-900">01. Hero Section</h2>
+                <span className="text-[11px] font-medium text-slate-400">Headline &amp; Visual Art</span>
+              </div>
+
+              <ImageSlotPicker
+                label="Hero Visual Asset / Cover Image"
+                value={content.heroImage || ""}
+                onChange={(url) => update({ heroImage: url })}
+                projectId={projectId}
+                projectFiles={project.files}
+                hint="Click + to add a real mockup photo, architectural hero, or design visual. Leave empty to use geometric artwork."
+              />
+
               <Input
-                label="Primary button text"
-                name="cta1"
-                value={content.cta1}
-                onChange={(e) => update({ cta1: e.target.value })}
+                label="Eyebrow tag"
+                name="eyebrow"
+                value={content.eyebrow}
+                onChange={(e) => update({ eyebrow: e.target.value })}
+                placeholder="STUDIO / CONSULTING"
               />
               <Input
-                label="Secondary button text"
-                name="cta2"
-                value={content.cta2}
-                onChange={(e) => update({ cta2: e.target.value })}
+                label="Headline (H1)"
+                name="h1"
+                textarea
+                value={content.h1}
+                onChange={(e) => update({ h1: e.target.value })}
+                placeholder="Main impact headline"
               />
-            </div>
-          </Card>
-
-          <Card className="p-5">
-            <h2 className="mb-3 text-sm font-semibold text-slate-800">Stats under the hero</h2>
-            <div className="space-y-2">
-              {content.stats.map((s, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input
-                    value={s.n}
-                    onChange={(e) => updateStat(i, { n: e.target.value })}
-                    placeholder="180+"
-                    className="w-24 rounded-lg border border-slate-300 px-2.5 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                  />
-                  <input
-                    value={s.l}
-                    onChange={(e) => updateStat(i, { l: e.target.value })}
-                    placeholder="Engagements delivered"
-                    className="flex-1 rounded-lg border border-slate-300 px-2.5 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                  />
-                  <button type="button" onClick={() => removeStat(i)} className="text-xs text-slate-400 hover:text-rose-600">
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-            <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={addStat}>
-              + Add stat
-            </Button>
-          </Card>
-
-          <Card className="p-5">
-            <h2 className="mb-3 text-sm font-semibold text-slate-800">Client logos strip</h2>
-            <div className="space-y-2">
-              {content.logos.map((l, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <input
-                    value={l}
-                    onChange={(e) => updateLogo(i, e.target.value)}
-                    placeholder="CLIENT NAME"
-                    className="flex-1 rounded-lg border border-slate-300 px-2.5 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                  />
-                  <button type="button" onClick={() => removeLogo(i)} className="text-xs text-slate-400 hover:text-rose-600">
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-            <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={addLogo}>
-              + Add logo
-            </Button>
-          </Card>
-
-          <Card className="space-y-4 p-5">
-            <h2 className="text-sm font-semibold text-slate-800">Services section</h2>
-            <Input
-              label="Section heading"
-              name="servicesHeading"
-              value={content.servicesHeading}
-              onChange={(e) => update({ servicesHeading: e.target.value })}
-            />
-          </Card>
-
-          <Card className="space-y-4 p-5">
-            <h2 className="text-sm font-semibold text-slate-800">Testimonial</h2>
-            <Input label="Quote" name="quote" textarea value={content.quote} onChange={(e) => update({ quote: e.target.value })} />
-            <Input
-              label="Attribution"
-              name="quoteBy"
-              value={content.quoteBy}
-              onChange={(e) => update({ quoteBy: e.target.value })}
-            />
-          </Card>
-
-          <Card className="space-y-4 p-5">
-            <h2 className="text-sm font-semibold text-slate-800">Call-to-action band</h2>
-            <Input
-              label="Title"
-              name="ctaBandTitle"
-              value={content.ctaBandTitle}
-              onChange={(e) => update({ ctaBandTitle: e.target.value })}
-            />
-            <Input
-              label="Body"
-              name="ctaBandBody"
-              textarea
-              value={content.ctaBandBody}
-              onChange={(e) => update({ ctaBandBody: e.target.value })}
-            />
-          </Card>
-
-          {content.process && (
-            <Card className="space-y-4 p-5">
-              <h2 className="text-sm font-semibold text-slate-800">Process section</h2>
               <Input
-                label="Section heading"
-                name="processHeading"
-                value={content.process.heading}
-                onChange={(e) => update({ process: { ...content.process!, heading: e.target.value } })}
+                label="Subheading lede"
+                name="lede"
+                textarea
+                value={content.lede}
+                onChange={(e) => update({ lede: e.target.value })}
+                placeholder="Short explanatory paragraph under headline"
               />
-              <TitleBodyListEditor
-                items={content.process.steps}
-                itemLabel="step"
-                onChange={(steps) => update({ process: { ...content.process!, steps } })}
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label="Primary Button Text"
+                  name="cta1"
+                  value={content.cta1}
+                  onChange={(e) => update({ cta1: e.target.value })}
+                />
+                <Input
+                  label="Secondary Button Text"
+                  name="cta2"
+                  value={content.cta2}
+                  onChange={(e) => update({ cta2: e.target.value })}
+                />
+              </div>
             </Card>
-          )}
+          </div>
 
-          {content.selectedWork && (
-            <Card className="space-y-4 p-5">
-              <h2 className="text-sm font-semibold text-slate-800">Selected work section</h2>
-              <Input
-                label="Section heading"
-                name="selectedWorkHeading"
-                value={content.selectedWork.heading}
-                onChange={(e) => update({ selectedWork: { ...content.selectedWork!, heading: e.target.value } })}
-              />
-              <div className="space-y-3">
-                {content.selectedWork.items.map((item, i) => (
-                  <div key={i} className="rounded-xl border border-slate-200 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Project {i + 1}</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          update({
-                            selectedWork: {
-                              ...content.selectedWork!,
-                              items: content.selectedWork!.items.filter((_, idx) => idx !== i),
-                            },
-                          })
-                        }
-                        className="text-xs font-medium text-slate-400 hover:text-rose-600"
-                      >
-                        Remove
-                      </button>
-                    </div>
+          {/* Section: Stats */}
+          <div id="section-card-stats">
+            <Card className={`p-5 transition-all ${activeSectionId === "stats" ? "ring-2 ring-indigo-500" : ""}`}>
+              <h2 className="mb-3 text-sm font-bold text-slate-900">02. Stats Counter Section</h2>
+              <div className="space-y-2">
+                {content.stats.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2">
                     <input
-                      value={item.title}
-                      onChange={(e) =>
-                        update({
-                          selectedWork: {
-                            ...content.selectedWork!,
-                            items: content.selectedWork!.items.map((it, idx) =>
-                              idx === i ? { ...it, title: e.target.value } : it
-                            ),
-                          },
-                        })
-                      }
-                      placeholder="Project title"
-                      className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      value={s.n}
+                      onChange={(e) => updateStat(i, { n: e.target.value })}
+                      placeholder="180+"
+                      className="w-24 rounded-lg border border-slate-300 px-2.5 py-2 text-xs font-semibold focus:border-indigo-500 focus:outline-none"
                     />
                     <input
-                      value={item.meta}
-                      onChange={(e) =>
-                        update({
-                          selectedWork: {
-                            ...content.selectedWork!,
-                            items: content.selectedWork!.items.map((it, idx) =>
-                              idx === i ? { ...it, meta: e.target.value } : it
-                            ),
-                          },
-                        })
-                      }
-                      placeholder="Location — year"
-                      className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      value={s.l}
+                      onChange={(e) => updateStat(i, { l: e.target.value })}
+                      placeholder="Engagements delivered"
+                      className="flex-1 rounded-lg border border-slate-300 px-2.5 py-2 text-xs focus:border-indigo-500 focus:outline-none"
                     />
-                    <textarea
-                      value={item.body}
-                      onChange={(e) =>
-                        update({
-                          selectedWork: {
-                            ...content.selectedWork!,
-                            items: content.selectedWork!.items.map((it, idx) =>
-                              idx === i ? { ...it, body: e.target.value } : it
-                            ),
-                          },
-                        })
-                      }
-                      placeholder="Short description"
-                      rows={2}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => removeStat(i)}
+                      className="text-xs text-slate-400 hover:text-rose-600 transition-colors px-1"
+                    >
+                      ✕
+                    </button>
                   </div>
                 ))}
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  update({
-                    selectedWork: {
-                      ...content.selectedWork!,
-                      items: [...content.selectedWork!.items, { title: "", meta: "", body: "" }],
-                    },
-                  })
-                }
-              >
-                + Add project
+              <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={addStat}>
+                + Add Stat
               </Button>
             </Card>
+          </div>
+
+          {/* Section: Client Logos */}
+          <div id="section-card-logos">
+            <Card className={`p-5 transition-all ${activeSectionId === "logos" ? "ring-2 ring-indigo-500" : ""}`}>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-bold text-slate-900">03. Client Logos &amp; Marquee</h2>
+                <span className="text-[11px] text-slate-400">Text names or Image URLs</span>
+              </div>
+              <div className="space-y-2">
+                {content.logos.map((l, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      value={l}
+                      onChange={(e) => updateLogo(i, e.target.value)}
+                      placeholder="Brand Name or Image URL (https://...)"
+                      className="flex-1 rounded-lg border border-slate-300 px-2.5 py-2 text-xs font-mono focus:border-indigo-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeLogo(i)}
+                      className="text-xs text-slate-400 hover:text-rose-600 transition-colors px-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={addLogo}>
+                + Add Logo
+              </Button>
+            </Card>
+          </div>
+
+          {/* Section: Services Intro */}
+          <div id="section-card-services">
+            <Card className={`space-y-4 p-5 transition-all ${activeSectionId === "services" ? "ring-2 ring-indigo-500" : ""}`}>
+              <h2 className="text-sm font-bold text-slate-900">04. Services Heading on Home</h2>
+              <Input
+                label="Section Heading"
+                name="servicesHeading"
+                value={content.servicesHeading}
+                onChange={(e) => update({ servicesHeading: e.target.value })}
+                placeholder="Three ways we help"
+              />
+            </Card>
+          </div>
+
+          {/* Section: Process Flow (if supported) */}
+          {content.process && (
+            <div id="section-card-process">
+              <Card className={`space-y-4 p-5 transition-all ${activeSectionId === "process" ? "ring-2 ring-indigo-500" : ""}`}>
+                <h2 className="text-sm font-bold text-slate-900">05. Process Timeline Section</h2>
+                <Input
+                  label="Section Heading"
+                  name="processHeading"
+                  value={content.process.heading}
+                  onChange={(e) => update({ process: { ...content.process!, heading: e.target.value } })}
+                />
+                <TitleBodyListEditor
+                  items={content.process.steps}
+                  itemLabel="step"
+                  onChange={(steps) => update({ process: { ...content.process!, steps } })}
+                />
+              </Card>
+            </div>
           )}
+
+          {/* Section: Selected Work / Portfolio (if supported) */}
+          {content.selectedWork && (
+            <div id="section-card-work">
+              <Card className={`space-y-4 p-5 transition-all ${activeSectionId === "work" ? "ring-2 ring-indigo-500" : ""}`}>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-slate-900">06. Selected Work Showcase</h2>
+                  <Button type="button" variant="ghost" size="sm" onClick={addWorkItem}>
+                    + Add Project
+                  </Button>
+                </div>
+                <Input
+                  label="Section Heading"
+                  name="selectedWorkHeading"
+                  value={content.selectedWork.heading}
+                  onChange={(e) => update({ selectedWork: { ...content.selectedWork!, heading: e.target.value } })}
+                />
+                <div className="space-y-4">
+                  {content.selectedWork.items.map((item, idx) => (
+                    <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-indigo-600">Project #{idx + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeWorkItem(idx)}
+                          className="text-xs text-slate-400 hover:text-rose-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <ImageSlotPicker
+                        label="Project Showcase Image (Optional)"
+                        value={item.image || ""}
+                        onChange={(url) => updateWorkItem(idx, { image: url })}
+                        projectId={projectId}
+                        projectFiles={project.files}
+                        compact
+                        aspectRatio="wide"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          label="Title"
+                          name={`work-title-${idx}`}
+                          value={item.title}
+                          onChange={(e) => updateWorkItem(idx, { title: e.target.value })}
+                        />
+                        <Input
+                          label="Meta tag"
+                          name={`work-meta-${idx}`}
+                          value={item.meta}
+                          onChange={(e) => updateWorkItem(idx, { meta: e.target.value })}
+                        />
+                      </div>
+                      <Input
+                        label="Description"
+                        name={`work-body-${idx}`}
+                        textarea
+                        value={item.body}
+                        onChange={(e) => updateWorkItem(idx, { body: e.target.value })}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {/* Section: Testimonials */}
+          <div id="section-card-quote">
+            <Card className={`space-y-4 p-5 transition-all ${activeSectionId === "quote" ? "ring-2 ring-indigo-500" : ""}`}>
+              <h2 className="text-sm font-bold text-slate-900">07. Client Testimonial Quote</h2>
+              <ImageSlotPicker
+                label="Client Avatar Photo"
+                value={content.quoteAvatar || ""}
+                onChange={(url) => update({ quoteAvatar: url })}
+                projectId={projectId}
+                projectFiles={project.files}
+                aspectRatio="circle"
+                compact
+                hint="Add client headshot or avatar"
+              />
+              <Input label="Quote Text" name="quote" textarea value={content.quote} onChange={(e) => update({ quote: e.target.value })} />
+              <Input
+                label="Client Name &amp; Title"
+                name="quoteBy"
+                value={content.quoteBy}
+                onChange={(e) => update({ quoteBy: e.target.value })}
+                placeholder="Priya Nandakumar, COO at Portage Group"
+              />
+            </Card>
+          </div>
+
+          {/* Section: CTA Band */}
+          <div id="section-card-cta">
+            <Card className={`space-y-4 p-5 transition-all ${activeSectionId === "cta" ? "ring-2 ring-indigo-500" : ""}`}>
+              <h2 className="text-sm font-bold text-slate-900">08. Call-to-Action Band</h2>
+              <Input
+                label="Title"
+                name="ctaBandTitle"
+                value={content.ctaBandTitle}
+                onChange={(e) => update({ ctaBandTitle: e.target.value })}
+              />
+              <Input
+                label="Body Text"
+                name="ctaBandBody"
+                textarea
+                value={content.ctaBandBody}
+                onChange={(e) => update({ ctaBandBody: e.target.value })}
+              />
+            </Card>
+          </div>
         </div>
 
-        <div className="lg:sticky lg:top-6 lg:self-start">
-          <h2 className="mb-3 text-sm font-semibold text-slate-800">Live preview</h2>
-          <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-lg">
-            <ScaledFrame config={previewConfig} cropHeight={640} interactive />
+        {/* Right Column: Live Viewport Canvas (sticky) */}
+        <div className="lg:col-span-6">
+          <div className="sticky top-6">
+            <ResponsiveDeviceFrame
+              config={previewConfig}
+              title={`Live Preview · ${project.name}`}
+            />
           </div>
         </div>
       </div>

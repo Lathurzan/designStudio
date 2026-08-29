@@ -390,20 +390,31 @@ const SHARED_SCRIPT = `
 })();
 `;
 
-function heroArt(): string {
+function heroArt(image?: string): string {
+  if (image && image.trim()) {
+    return `<div class="hero-art rv" style="background-image:url('${image.trim()}'); background-size:cover; background-position:center; position:relative;">
+      <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,0) 60%, rgba(0,0,0,0.3) 100%);"></div>
+    </div>`;
+  }
   return `<div class="hero-art rv"><div class="blob"></div><div class="grid-lines"></div>
     <div class="card" style="width:56%; top:14%; left:10%; height:34%;"></div>
     <div class="card" style="width:46%; top:54%; left:38%; height:34%;"></div>
   </div>`;
 }
 
-/** Bold gets an infinite scrolling marquee (logos rendered twice for a seamless loop); everyone else gets the plain static strip. */
+/** Bold gets an infinite scrolling marquee; everyone else gets the clean static strip. Supports both text and image logos. */
 function logoStripHTML(templateId: TemplateId, logos: string[]): string {
+  const renderItem = (l: string) => {
+    if (l.startsWith("http") || l.startsWith("/") || l.startsWith("data:")) {
+      return `<img src="${l}" alt="Logo" style="height:26px; max-width:130px; object-fit:contain; filter:grayscale(1) opacity(0.7); display:inline-block;" />`;
+    }
+    return `<span>${l}</span>`;
+  };
   if (templateId === "bold") {
-    const spans = logos.map(l => `<span>${l}</span>`).join("");
+    const spans = logos.map(renderItem).join("");
     return `<div class="marquee"><div class="marquee-track">${spans}${spans}</div></div>`;
   }
-  return `<div class="strip">${logos.map(l => `<span>${l}</span>`).join("")}</div>`;
+  return `<div class="strip" style="align-items:center;">${logos.map(renderItem).join("")}</div>`;
 }
 
 function processSectionHTML(process: NonNullable<ContentHome["process"]>): string {
@@ -423,6 +434,7 @@ function selectedWorkSectionHTML(work: NonNullable<ContentHome["selectedWork"]>)
         <div class="work-item rv">
           <span class="num">0${i + 1}</span>
           <div>
+            ${it.image ? `<div style="height:180px; border-radius:14px; overflow:hidden; margin-bottom:14px; border:1px solid var(--border);"><img src="${it.image}" alt="${it.title}" style="width:100%; height:100%; object-fit:cover;" /></div>` : ""}
             <span class="work-meta">${it.meta}</span>
             <h3>${it.title}</h3>
             <p>${it.body}</p>
@@ -433,14 +445,17 @@ function selectedWorkSectionHTML(work: NonNullable<ContentHome["selectedWork"]>)
 }
 
 export interface ContentNav {
+  logoUrl?: string;
   ctaText: string;
   loginText: string;
+  loginStyle?: "button" | "link";
 }
 export interface ContentFooter {
+  logoUrl?: string;
   tagline: string;
   bottomNote: string;
 }
-export const NAV_DEFAULTS: ContentNav = { ctaText: "Get in touch", loginText: "Log in" };
+export const NAV_DEFAULTS: ContentNav = { ctaText: "Get in touch", loginText: "Log in", loginStyle: "button" };
 export const FOOTER_DEFAULTS: ContentFooter = {
   tagline: "A design experienced before it's built.",
   bottomNote: "Prototype generated for client review — not a live website.",
@@ -448,29 +463,55 @@ export const FOOTER_DEFAULTS: ContentFooter = {
 
 function navHTML(pages: PageId[], brand: string, navOverride: ContentNav | undefined, wrapTemplateId: TemplateId): string {
   const nav = { ...NAV_DEFAULTS, ...navOverride };
-  const links = pages.map(p => `<a data-nav="${p}" class="${p === "home" ? "active" : ""}">${PAGE_LABELS[p]}</a>`).join("");
+  // Only content pages (exclude 'login' from standard content links)
+  const contentPages = pages.filter((p) => p !== "login");
+  
+  // If the user only has 1 page (i.e. 'home'), don't say "Home" in the navbar links.
+  // If user selected 2 or more pages, show "Home", "About", "Services", etc.
+  const visiblePages = contentPages.length > 1 ? contentPages : [];
+  
+  const links = visiblePages
+    .map((p) => `<a data-nav="${p}" class="${p === "home" ? "active" : ""}">${PAGE_LABELS[p]}</a>`)
+    .join("");
+
+  const hasLogin = pages.includes("login");
+  const loginStyle = nav.loginStyle || "button";
+
+  const loginCTA = hasLogin
+    ? loginStyle === "button"
+      ? `<a class="btn btn-ghost btn-sm" data-nav="login">${nav.loginText}</a>`
+      : `<a data-nav="login" style="font-size:14px; font-weight:500; color:var(--muted); margin-right:12px; cursor:pointer;" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">${nav.loginText}</a>`
+    : "";
+
+  const brandMark = nav.logoUrl
+    ? `<img src="${nav.logoUrl}" alt="${brand}" style="height:26px; width:auto; border-radius:6px; object-fit:contain; margin-right:8px;" />`
+    : `<span class="nav-mark"></span>`;
+
   return `
   <div data-template="${wrapTemplateId}">
   <nav class="nav">
-    <div class="nav-brand"><span class="nav-mark"></span>${brand}</div>
+    <div class="nav-brand">${brandMark}${brand}</div>
     <div class="nav-links">${links}</div>
     <div class="nav-cta">
-      <a class="btn btn-ghost btn-sm" data-nav="login" style="display:${pages.includes("login") ? "inline-flex" : "none"}">${nav.loginText}</a>
+      ${loginCTA}
       <a class="btn btn-primary btn-sm" data-nav="contact">${nav.ctaText}</a>
       <button class="nav-burger" aria-label="Menu"><svg width="16" height="12" viewBox="0 0 16 12"><path d="M0 1h16M0 6h16M0 11h16" stroke="currentColor" stroke-width="1.6"/></svg></button>
     </div>
   </nav>
   <div class="mnav">
-    <div class="mnav-top"><div class="nav-brand"><span class="nav-mark"></span>${brand}</div><button class="mnav-close" aria-label="Close" style="border:none;background:none;font-size:26px;color:var(--text);">&times;</button></div>
-    ${pages.map(p => `<a data-nav="${p}">${PAGE_LABELS[p]}</a>`).join("")}
+    <div class="mnav-top"><div class="nav-brand">${brandMark}${brand}</div><button class="mnav-close" aria-label="Close" style="border:none;background:none;font-size:26px;color:var(--text);">&times;</button></div>
+    ${pages.map((p) => `<a data-nav="${p}">${PAGE_LABELS[p]}</a>`).join("")}
   </div>
   </div>`;
 }
 
 function footerHTML(brand: string, pages: PageId[], footerOverride: ContentFooter | undefined, wrapTemplateId: TemplateId): string {
   const footer = { ...FOOTER_DEFAULTS, ...footerOverride };
+  const brandMark = footer.logoUrl
+    ? `<img src="${footer.logoUrl}" alt="${brand}" style="height:26px; width:auto; border-radius:6px; object-fit:contain; margin-right:8px;" />`
+    : `<span class="nav-mark"></span>`;
   return `<div data-template="${wrapTemplateId}"><footer class="site">
-    <div><div class="nav-brand" style="margin-bottom:14px;"><span class="nav-mark"></span>${brand}</div><p style="max-width:26ch; font-size:13.5px;">${footer.tagline}</p></div>
+    <div><div class="nav-brand" style="margin-bottom:14px;">${brandMark}${brand}</div><p style="max-width:26ch; font-size:13.5px;">${footer.tagline}</p></div>
     <div class="f-cols">
       <div><h4>Site</h4><ul>${pages.map(p => `<li><a data-nav="${p}">${PAGE_LABELS[p]}</a></li>`).join("")}</ul></div>
       <div><h4>Company</h4><ul><li><a data-nav="about">About</a></li><li><a data-nav="contact">Contact</a></li></ul></div>
@@ -479,21 +520,22 @@ function footerHTML(brand: string, pages: PageId[], footerOverride: ContentFoote
   </footer></div>`;
 }
 
-interface ContentStat { n: string; l: string; }
-interface ProcessStep { title: string; body: string; }
-interface WorkItem { title: string; meta: string; body: string; }
+export interface ContentStat { n: string; l: string; }
+export interface ProcessStep { title: string; body: string; }
+export interface WorkItem { title: string; meta: string; body: string; image?: string; }
 export interface ContentHome {
+  heroImage?: string;
   eyebrow: string; h1: string; lede: string; cta1: string; cta2: string;
-  stats: ContentStat[]; logos: string[]; servicesHeading: string; quote: string; quoteBy: string;
+  stats: ContentStat[]; logos: string[]; servicesHeading: string; quote: string; quoteBy: string; quoteAvatar?: string;
   ctaBandTitle: string; ctaBandBody: string;
   process?: { heading: string; steps: ProcessStep[] };
   selectedWork?: { heading: string; items: WorkItem[] };
 }
-interface ContentAboutValue { title: string; body: string; }
-export interface ContentAbout { h1: string; lede: string; valuesHeading: string; values: ContentAboutValue[]; ctaTitle: string; ctaBody: string; }
-interface ContentServiceItem { title: string; body: string; }
-export interface ContentServices { h1: string; lede: string; items: ContentServiceItem[]; ctaTitle: string; ctaBody: string; }
-export interface ContentContact { h1: string; lede: string; }
+export interface ContentAboutValue { title: string; body: string; image?: string; }
+export interface ContentAbout { heroImage?: string; h1: string; lede: string; valuesHeading: string; values: ContentAboutValue[]; ctaTitle: string; ctaBody: string; }
+export interface ContentServiceItem { title: string; body: string; image?: string; icon?: string; }
+export interface ContentServices { heroImage?: string; h1: string; lede: string; items: ContentServiceItem[]; ctaTitle: string; ctaBody: string; }
+export interface ContentContact { heroImage?: string; h1: string; lede: string; email?: string; phone?: string; officeAddress?: string; }
 interface TemplateContent { home: ContentHome; about: ContentAbout; services: ContentServices; contact: ContentContact; }
 
 const CONTENT: Record<TemplateId, TemplateContent> = {
@@ -665,6 +707,9 @@ function pagesFor(
   if (pages.includes("home")) {
     const templateId = sectionTemplates.home;
     const content = resolveContent(templateId, overrides);
+    const avatarHTML = content.home.quoteAvatar
+      ? `<img class="avatar" src="${content.home.quoteAvatar}" alt="avatar" style="width:38px; height:38px; border-radius:50%; object-fit:cover;" />`
+      : `<span class="avatar"></span>`;
     out.home = `<div data-template="${templateId}"><div class="page is-active" id="page-home">
     <section class="hero" data-stagger>
       <div class="hero-copy">
@@ -677,13 +722,19 @@ function pagesFor(
         </div>
         <div class="hero-stats rv">${content.home.stats.map(s => `<div class="stat"><b>${s.n}</b><span>${s.l}</span></div>`).join("")}</div>
       </div>
-      ${heroArt()}
+      ${heroArt(content.home.heroImage)}
     </section>
     ${logoStripHTML(templateId, content.home.logos)}
     <section data-stagger>
       <div class="s-head rv"><div class="eyebrow">What we do</div><h2>${content.home.servicesHeading}</h2></div>
       <div class="grid3">
-        ${content.services.items.slice(0, 3).map((it, i) => `<div class="card rv"><span class="num">0${i + 1}</span><div class="card-icon"></div><h3>${it.title}</h3><p>${it.body}</p></div>`).join("")}
+        ${content.services.items.slice(0, 3).map((it, i) => `
+          <div class="card rv">
+            <span class="num">0${i + 1}</span>
+            ${it.image ? `<div style="height:130px; border-radius:12px; overflow:hidden; margin-bottom:16px; border:1px solid var(--border);"><img src="${it.image}" alt="${it.title}" style="width:100%; height:100%; object-fit:cover;" /></div>` : `<div class="card-icon"></div>`}
+            <h3>${it.title}</h3>
+            <p>${it.body}</p>
+          </div>`).join("")}
       </div>
     </section>
     ${content.home.process ? processSectionHTML(content.home.process) : ""}
@@ -691,7 +742,7 @@ function pagesFor(
     <section data-stagger>
       <div class="quote rv">
         <p>&ldquo;${content.home.quote}&rdquo;</p>
-        <footer><span class="avatar"></span>${content.home.quoteBy}</footer>
+        <footer>${avatarHTML}${content.home.quoteBy}</footer>
       </div>
     </section>
     <section>
@@ -713,11 +764,17 @@ function pagesFor(
         <h1 class="rv" style="font-size:clamp(32px,4vw,48px);">${content.about.h1}</h1>
         <p class="lede rv" style="margin-top:20px;">${content.about.lede}</p>
       </div>
-      ${heroArt()}
+      ${heroArt(content.about.heroImage)}
     </section>
     <section data-stagger>
       <div class="s-head rv"><div class="eyebrow">How we work</div><h2>${content.about.valuesHeading}</h2></div>
-      <div class="grid3">${content.about.values.map((v, i) => `<div class="card rv"><span class="num">0${i + 1}</span><h3>${v.title}</h3><p>${v.body}</p></div>`).join("")}</div>
+      <div class="grid3">${content.about.values.map((v, i) => `
+        <div class="card rv">
+          <span class="num">0${i + 1}</span>
+          ${v.image ? `<div style="height:130px; border-radius:12px; overflow:hidden; margin-bottom:16px; border:1px solid var(--border);"><img src="${v.image}" alt="${v.title}" style="width:100%; height:100%; object-fit:cover;" /></div>` : ""}
+          <h3>${v.title}</h3>
+          <p>${v.body}</p>
+        </div>`).join("")}</div>
     </section>
     <section><div class="cta-band rv"><h2>${content.about.ctaTitle}</h2><p>${content.about.ctaBody}</p><div class="hero-actions"><a class="btn btn-primary" data-nav="contact">Start a project</a></div></div></section>
     ${footerHTML(brand, pages, overrides?.footer, sectionTemplates.chrome)}
@@ -728,13 +785,22 @@ function pagesFor(
     const templateId = sectionTemplates.services;
     const content = resolveContent(templateId, overrides);
     out.services = `<div data-template="${templateId}"><div class="page" id="page-services">
-    <section data-stagger>
-      <div class="eyebrow rv">Services</div>
-      <h1 class="rv" style="font-size:clamp(32px,4vw,48px); max-width:14ch;">${content.services.h1}</h1>
-      <p class="lede rv" style="margin-top:20px;">${content.services.lede}</p>
+    <section class="split" data-stagger>
+      <div>
+        <div class="eyebrow rv">Services</div>
+        <h1 class="rv" style="font-size:clamp(32px,4vw,48px);">${content.services.h1}</h1>
+        <p class="lede rv" style="margin-top:20px;">${content.services.lede}</p>
+      </div>
+      ${content.services.heroImage ? heroArt(content.services.heroImage) : ""}
     </section>
     <section data-stagger>
-      <div class="grid3">${content.services.items.map((it, i) => `<div class="card rv"><span class="num">0${i + 1}</span><div class="card-icon"></div><h3>${it.title}</h3><p>${it.body}</p></div>`).join("")}</div>
+      <div class="grid3">${content.services.items.map((it, i) => `
+        <div class="card rv">
+          <span class="num">0${i + 1}</span>
+          ${it.image ? `<div style="height:130px; border-radius:12px; overflow:hidden; margin-bottom:16px; border:1px solid var(--border);"><img src="${it.image}" alt="${it.title}" style="width:100%; height:100%; object-fit:cover;" /></div>` : `<div class="card-icon"></div>`}
+          <h3>${it.title}</h3>
+          <p>${it.body}</p>
+        </div>`).join("")}</div>
     </section>
     <section><div class="cta-band rv"><h2>${content.services.ctaTitle}</h2><p>${content.services.ctaBody}</p><div class="hero-actions"><a class="btn btn-primary" data-nav="contact">${content.home.cta1}</a></div></div></section>
     ${footerHTML(brand, pages, overrides?.footer, sectionTemplates.chrome)}
@@ -744,20 +810,28 @@ function pagesFor(
   if (pages.includes("contact")) {
     const templateId = sectionTemplates.contact;
     const content = resolveContent(templateId, overrides);
+    const infoItems = [];
+    if (content.contact.email) infoItems.push(`<div><b style="font-size:13px; color:var(--text); display:block;">Email</b><span style="font-size:14.5px; color:var(--muted);">${content.contact.email}</span></div>`);
+    if (content.contact.phone) infoItems.push(`<div><b style="font-size:13px; color:var(--text); display:block;">Phone</b><span style="font-size:14.5px; color:var(--muted);">${content.contact.phone}</span></div>`);
+    if (content.contact.officeAddress) infoItems.push(`<div><b style="font-size:13px; color:var(--text); display:block;">Studio</b><span style="font-size:14.5px; color:var(--muted);">${content.contact.officeAddress}</span></div>`);
+    
     out.contact = `<div data-template="${templateId}"><div class="page" id="page-contact">
     <section class="split" data-stagger>
       <div>
         <div class="eyebrow rv">Contact</div>
         <h1 class="rv" style="font-size:clamp(30px,4vw,44px);">${content.contact.h1}</h1>
         <p class="lede rv" style="margin-top:18px;">${content.contact.lede}</p>
+        ${infoItems.length > 0 ? `<div style="display:flex; flex-direction:column; gap:16px; margin-top:36px; padding-top:24px; border-top:1px solid var(--border);">${infoItems.join("")}</div>` : ""}
       </div>
-      <form class="form-wrap rv">
-        <div class="field"><label>Name</label><input type="text" placeholder="Jordan Blake"></div>
-        <div class="field"><label>Email</label><input type="email" placeholder="jordan@business.com"></div>
-        <div class="field"><label>What do you need?</label><textarea rows="4" placeholder="Tell us about your project"></textarea></div>
-        <button class="btn btn-primary" type="submit" style="width:100%;">Send message</button>
-        <p class="form-note">We reply within one business day.</p>
-      </form>
+      <div>
+        <form class="form-wrap rv">
+          <div class="field"><label>Name</label><input type="text" placeholder="Jordan Blake"></div>
+          <div class="field"><label>Email</label><input type="email" placeholder="jordan@business.com"></div>
+          <div class="field"><label>What do you need?</label><textarea rows="4" placeholder="Tell us about your project"></textarea></div>
+          <button class="btn btn-primary" type="submit" style="width:100%;">Send message</button>
+          <p class="form-note">We reply within one business day.</p>
+        </form>
+      </div>
     </section>
     ${footerHTML(brand, pages, overrides?.footer, sectionTemplates.chrome)}
     </div></div>`;

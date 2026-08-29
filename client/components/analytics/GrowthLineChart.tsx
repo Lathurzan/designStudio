@@ -6,7 +6,8 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface GrowthLineChartProps {
-  data: Record<string, string | number>[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any[];
   xKey: string;
   yKey: string;
   color?: string;
